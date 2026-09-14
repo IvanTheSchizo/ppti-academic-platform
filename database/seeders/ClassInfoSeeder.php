@@ -2,16 +2,23 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\ClassInfo;
 use Illuminate\Database\Seeder;
 
 class ClassInfoSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        //
+        $classes = [
+            'Math 67',
+            'PPTI 69',
+            'Lost my 50/50',
+        ];
+
+        foreach ($classes as $className) {
+            ClassInfo::create([
+                'class_name' => $className,
+            ]);
+        }
     }
 }
