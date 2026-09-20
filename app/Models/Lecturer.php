@@ -5,14 +5,14 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class Course extends Model
+class Lecturer extends Model
 {
     use HasFactory;
 
     protected $fillable = [
-        'course_name',
-        'sks',
-        'track_type',
+        'nip',
+        'name',
+        'status',
     ];
 
     public function courseRecords()

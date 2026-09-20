@@ -9,30 +9,26 @@ class Student extends Model
 {
     use HasFactory;
 
-    protected $primaryKey = 'nim';
-
-    public $incrementing = false;
-
-    protected $keyType = 'string';
-
     protected $fillable = [
         'nim',
         'name',
-        'class_info_id',
-        'cached_gpa',
+        'batch_id',
+        'track',
+        'status',
+        'gpa',
     ];
 
     protected $casts = [
-        'cached_gpa' => 'decimal:2',
+        'gpa' => 'decimal:2',
     ];
 
-    public function classInfo()
+    public function batch()
     {
-        return $this->belongsTo(ClassInfo::class);
+        return $this->belongsTo(Batch::class);
     }
 
     public function grades()
     {
-        return $this->hasMany(StudentGrade::class, 'student_nim', 'nim');
+        return $this->hasMany(StudentGrade::class);
     }
 }

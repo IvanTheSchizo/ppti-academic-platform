@@ -11,20 +11,26 @@ return new class extends Migration
      */
     public function up(): void
     {
-                Schema::create('students', function (Blueprint $table) {
+        Schema::create('course_records', function (Blueprint $table) {
             $table->id();
 
-            $table->string('nim')->unique();
-            $table->string('name');
+            $table->foreignId('course_id')
+                ->constrained('courses')
+                ->restrictOnDelete();
+
+            $table->foreignId('lecturer_id')
+                ->constrained('lecturers')
+                ->restrictOnDelete();
+
+            $table->foreignId('period_id')
+                ->constrained('periods')
+                ->restrictOnDelete();
 
             $table->foreignId('batch_id')
                 ->constrained('batches')
                 ->restrictOnDelete();
 
-            $table->string('track');
-            $table->string('status');
-
-            $table->decimal('gpa', 3, 2)->default(0);
+            $table->string('record_code')->unique();
 
             $table->timestamps();
         });
@@ -35,6 +41,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('students');
+        Schema::dropIfExists('course_records');
     }
 };

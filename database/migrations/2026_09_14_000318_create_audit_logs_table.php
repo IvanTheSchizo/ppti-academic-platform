@@ -8,7 +8,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('audit_logs', function (Blueprint $table) {
+         Schema::create('audit_logs', function (Blueprint $table) {
             $table->id();
 
             $table->foreignId('admin_id')
@@ -17,6 +17,10 @@ return new class extends Migration
 
             $table->string('action_type');
             $table->string('target_entity');
+            $table->unsignedBigInteger('target_id');
+
+            $table->text('old_value')->nullable();
+            $table->text('new_value')->nullable();
 
             $table->timestamps();
         });

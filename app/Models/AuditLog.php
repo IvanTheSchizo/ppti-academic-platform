@@ -10,6 +10,9 @@ class AuditLog extends Model
         'admin_id',
         'action_type',
         'target_entity',
+        'target_id',
+        'old_value',
+        'new_value',
     ];
 
     public function admin()

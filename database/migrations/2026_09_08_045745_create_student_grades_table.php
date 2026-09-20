@@ -14,19 +14,17 @@ return new class extends Migration
         Schema::create('student_grades', function (Blueprint $table) {
             $table->id();
 
-            $table->string('student_nim');
-            $table->foreign('student_nim')
-                ->references('nim')
-                ->on('students')
+            $table->foreignId('student_id')
+                ->constrained('students')
                 ->cascadeOnDelete();
 
-            $table->foreignId('course_id')
-                ->constrained('courses')
+            $table->foreignId('course_record_id')
+                ->constrained('course_records')
                 ->restrictOnDelete();
 
             $table->decimal('grade', 3, 2);
 
-            $table->unique(['student_nim', 'course_id']);
+            $table->unique(['student_id', 'course_record_id']);
 
             $table->timestamps();
         });

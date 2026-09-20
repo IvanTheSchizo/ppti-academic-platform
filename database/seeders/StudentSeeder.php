@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\ClassInfo;
+use App\Models\Batch;
 use App\Models\Student;
 use Illuminate\Database\Seeder;
 
@@ -10,51 +10,58 @@ class StudentSeeder extends Seeder
 {
     public function run(): void
     {
-        $math67 = ClassInfo::where('class_name', 'Math 67')->firstOrFail();
-        $ppti69 = ClassInfo::where('class_name', 'PPTI 69')->firstOrFail();
-        $lost5050 = ClassInfo::where('class_name', 'Lost my 50/50')->firstOrFail();
-
         $students = [
             [
-                'nim' => '25010001',
-                'name' => 'Bry1',
-                'class_info_id' => $math67->id,
-                'cached_gpa' => 0,
+                'nim' => '20230001',
+                'name' => 'Aditya Pranoto',
+                'batch' => '2023',
+                'track' => 'Software Engineering',
+                'status' => 'Active',
+                'gpa' => 3.45,
             ],
             [
-                'nim' => '25010002',
-                'name' => 'Bry2',
-                'class_info_id' => $math67->id,
-                'cached_gpa' => 0,
+                'nim' => '20230002',
+                'name' => 'Bella Maharani',
+                'batch' => '2023',
+                'track' => 'Network Technology',
+                'status' => 'Active',
+                'gpa' => 3.62,
             ],
             [
-                'nim' => '25020001',
-                'name' => 'Bry3',
-                'class_info_id' => $ppti69->id,
-                'cached_gpa' => 0,
+                'nim' => '20240001',
+                'name' => 'Farhan Akbar',
+                'batch' => '2024',
+                'track' => 'Software Engineering',
+                'status' => 'Active',
+                'gpa' => 3.50,
             ],
             [
-                'nim' => '25020002',
-                'name' => 'Bry4',
-                'class_info_id' => $ppti69->id,
-                'cached_gpa' => 0,
+                'nim' => '20240002',
+                'name' => 'Grace Natalia',
+                'batch' => '2024',
+                'track' => 'Network Technology',
+                'status' => 'Active',
+                'gpa' => 3.80,
             ],
             [
-                'nim' => '25030001',
-                'name' => 'Bry5',
-                'class_info_id' => $lost5050->id,
-                'cached_gpa' => 0,
-            ],
-            [
-                'nim' => '25030002',
-                'name' => 'Bry6',
-                'class_info_id' => $lost5050->id,
-                'cached_gpa' => 0,
+                'nim' => '20250001',
+                'name' => 'Kevin Santoso',
+                'batch' => '2025',
+                'track' => 'Software Engineering',
+                'status' => 'Active',
+                'gpa' => 3.41,
             ],
         ];
 
         foreach ($students as $student) {
-            Student::create($student);
+            Student::create([
+                'nim' => $student['nim'],
+                'name' => $student['name'],
+                'batch_id' => Batch::where('batch_name', $student['batch'])->firstOrFail()->id,
+                'track' => $student['track'],
+                'status' => $student['status'],
+                'gpa' => $student['gpa'],
+            ]);
         }
     }
 }

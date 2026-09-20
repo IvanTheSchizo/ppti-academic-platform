@@ -10,8 +10,8 @@ class StudentGrade extends Model
     use HasFactory;
 
     protected $fillable = [
-        'student_nim',
-        'course_id',
+        'student_id',
+        'course_record_id',
         'grade',
     ];
 
@@ -21,11 +21,11 @@ class StudentGrade extends Model
 
     public function student()
     {
-        return $this->belongsTo(Student::class, 'student_nim', 'nim');
+        return $this->belongsTo(Student::class);
     }
 
-    public function course()
+    public function courseRecord()
     {
-        return $this->belongsTo(Course::class);
+        return $this->belongsTo(CourseRecord::class);
     }
 }

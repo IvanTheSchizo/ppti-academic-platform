@@ -14,4 +14,9 @@ class Admin extends Model
     protected $hidden = [
         'password',
     ];
+
+    public function auditLogs()
+    {
+        return $this->hasMany(AuditLog::class);
+    }
 }
