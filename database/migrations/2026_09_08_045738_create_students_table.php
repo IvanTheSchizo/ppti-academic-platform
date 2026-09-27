@@ -11,20 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-                Schema::create('students', function (Blueprint $table) {
+        Schema::create('students', function (Blueprint $table) {
             $table->id();
-
             $table->string('nim')->unique();
             $table->string('name');
 
-            $table->foreignId('batch_id')
-                ->constrained('batches')
+            $table->foreignId('class_id')
+                ->constrained('class_groups')
                 ->restrictOnDelete();
 
-            $table->string('track');
             $table->string('status');
-
-            $table->decimal('gpa', 3, 2)->default(0);
+            $table->decimal('cumulative_gpa', 3, 2)->default(0);
 
             $table->timestamps();
         });

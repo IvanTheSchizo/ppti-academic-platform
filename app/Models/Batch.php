@@ -13,13 +13,8 @@ class Batch extends Model
         'batch_name',
     ];
 
-    public function students()
+    public function classes()
     {
-        return $this->hasMany(Student::class);
-    }
-
-    public function courseRecords()
-    {
-        return $this->hasMany(CourseRecord::class);
+        return $this->hasMany(ClassGroup::class);
     }
 }

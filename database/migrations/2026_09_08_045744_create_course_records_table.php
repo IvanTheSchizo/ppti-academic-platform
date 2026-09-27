@@ -26,8 +26,8 @@ return new class extends Migration
                 ->constrained('periods')
                 ->restrictOnDelete();
 
-            $table->foreignId('batch_id')
-                ->constrained('batches')
+            $table->foreignId('class_id')
+                ->constrained('class_groups')
                 ->restrictOnDelete();
 
             $table->string('record_code')->unique();

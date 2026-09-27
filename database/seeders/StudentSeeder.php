@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Batch;
+use App\Models\ClassGroup;
 use App\Models\Student;
 use Illuminate\Database\Seeder;
 
@@ -14,42 +14,30 @@ class StudentSeeder extends Seeder
             [
                 'nim' => '20230001',
                 'name' => 'Aditya Pranoto',
-                'batch' => '2023',
-                'track' => 'Software Engineering',
+                'class_code' => '13-A',
                 'status' => 'Active',
-                'gpa' => 3.45,
+                'cumulative_gpa' => 3.45,
             ],
             [
                 'nim' => '20230002',
                 'name' => 'Bella Maharani',
-                'batch' => '2023',
-                'track' => 'Network Technology',
+                'class_code' => '13-B',
                 'status' => 'Active',
-                'gpa' => 3.62,
+                'cumulative_gpa' => 3.62,
             ],
             [
                 'nim' => '20240001',
                 'name' => 'Farhan Akbar',
-                'batch' => '2024',
-                'track' => 'Software Engineering',
+                'class_code' => '14-A',
                 'status' => 'Active',
-                'gpa' => 3.50,
+                'cumulative_gpa' => 3.50,
             ],
             [
                 'nim' => '20240002',
                 'name' => 'Grace Natalia',
-                'batch' => '2024',
-                'track' => 'Network Technology',
-                'status' => 'Active',
-                'gpa' => 3.80,
-            ],
-            [
-                'nim' => '20250001',
-                'name' => 'Kevin Santoso',
-                'batch' => '2025',
-                'track' => 'Software Engineering',
-                'status' => 'Active',
-                'gpa' => 3.41,
+                'class_code' => '14-B',
+                'status' => 'On Leave',
+                'cumulative_gpa' => 3.80,
             ],
         ];
 
@@ -57,10 +45,9 @@ class StudentSeeder extends Seeder
             Student::create([
                 'nim' => $student['nim'],
                 'name' => $student['name'],
-                'batch_id' => Batch::where('batch_name', $student['batch'])->firstOrFail()->id,
-                'track' => $student['track'],
+                'class_id' => ClassGroup::where('class_code', $student['class_code'])->firstOrFail()->id,
                 'status' => $student['status'],
-                'gpa' => $student['gpa'],
+                'cumulative_gpa' => $student['cumulative_gpa'],
             ]);
         }
     }

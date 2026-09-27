@@ -10,11 +10,11 @@ class BatchSeeder extends Seeder
     public function run(): void
     {
         $batches = [
-            '2023',
-            '2024',
-            '2025',
-            '2026',
-        ];
+        'PPTI23',
+        'PPTI24',
+        'PPTI25',
+        'PPTI26',
+    ];
 
         foreach ($batches as $batchName) {
             Batch::create([

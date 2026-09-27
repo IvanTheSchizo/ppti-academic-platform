@@ -11,21 +11,20 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('student_grades', function (Blueprint $table) {
+        Schema::create('lecturer_performances', function (Blueprint $table) {
             $table->id();
 
-            $table->foreignId('student_id')
-                ->constrained('students')
-                ->cascadeOnDelete();
+            $table->foreignId('lecturer_id')
+                ->constrained('lecturers')
+                ->restrictOnDelete();
 
             $table->foreignId('course_record_id')
                 ->constrained('course_records')
-                ->restrictOnDelete();
+                ->cascadeOnDelete();
 
-            $table->decimal('numeric_grade', 3, 2);
-            $table->string('letter_grade', 2);
+            $table->decimal('ikadq', 3, 2);
 
-            $table->unique(['student_id', 'course_record_id']);
+            $table->unique(['lecturer_id', 'course_record_id']);
 
             $table->timestamps();
         });
@@ -36,6 +35,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('student_grades');
+        Schema::dropIfExists('lecturer_performances');
     }
 };

@@ -13,7 +13,7 @@ class CourseRecord extends Model
         'course_id',
         'lecturer_id',
         'period_id',
-        'batch_id',
+        'class_id',
         'record_code',
     ];
 
@@ -32,13 +32,18 @@ class CourseRecord extends Model
         return $this->belongsTo(Period::class);
     }
 
-    public function batch()
+    public function classGroup()
     {
-        return $this->belongsTo(Batch::class);
+        return $this->belongsTo(ClassGroup::class, 'class_id');
     }
 
     public function studentGrades()
     {
         return $this->hasMany(StudentGrade::class);
+    }
+
+        public function lecturerPerformance()
+    {
+        return $this->hasOne(LecturerPerformance::class);
     }
 }

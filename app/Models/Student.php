@@ -12,19 +12,18 @@ class Student extends Model
     protected $fillable = [
         'nim',
         'name',
-        'batch_id',
-        'track',
+        'class_id',
         'status',
-        'gpa',
+        'cumulative_gpa',
     ];
 
     protected $casts = [
-        'gpa' => 'decimal:2',
+        'cumulative_gpa' => 'decimal:2',
     ];
 
-    public function batch()
+    public function classGroup()
     {
-        return $this->belongsTo(Batch::class);
+        return $this->belongsTo(ClassGroup::class, 'class_id');
     }
 
     public function grades()

@@ -10,9 +10,9 @@ class Course extends Model
     use HasFactory;
 
     protected $fillable = [
+        'course_code',
         'course_name',
         'sks',
-        'track_type',
     ];
 
     public function courseRecords()

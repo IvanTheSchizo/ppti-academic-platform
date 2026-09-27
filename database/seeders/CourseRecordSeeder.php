@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\Batch;
+use App\Models\ClassGroup;
 use App\Models\Course;
 use App\Models\CourseRecord;
 use App\Models\Lecturer;
@@ -19,63 +19,35 @@ class CourseRecordSeeder extends Seeder
                 'course' => 'Introduction to Programming',
                 'lecturer' => 'Dr. Andi Pratama',
                 'period' => 'Semester 1 - 2024',
-                'batch' => '2023',
+                'class_code' => '13-A',
             ],
             [
                 'record_code' => 'CR-2024-S1-002',
                 'course' => 'Database Systems',
                 'lecturer' => 'Dr. Budi Santoso',
                 'period' => 'Semester 1 - 2024',
-                'batch' => '2023',
-            ],
-            [
-                'record_code' => 'CR-2024-S2-001',
-                'course' => 'Web Development',
-                'lecturer' => 'Dewi Lestari, M.Kom',
-                'period' => 'Semester 2 - 2024',
-                'batch' => '2023',
+                'class_code' => '13-B',
             ],
             [
                 'record_code' => 'CR-2025-S1-001',
-                'course' => 'Object-Oriented Programming',
+                'course' => 'Web Development',
                 'lecturer' => 'Dr. Citra Maharani',
                 'period' => 'Semester 1 - 2025',
-                'batch' => '2024',
+                'class_code' => '14-A',
             ],
             [
                 'record_code' => 'CR-2025-S1-002',
-                'course' => 'Computer Networks',
-                'lecturer' => 'Farah Nabila, M.Kom',
+                'course' => 'Object-Oriented Programming',
+                'lecturer' => 'Dewi Lestari, M.Kom',
                 'period' => 'Semester 1 - 2025',
-                'batch' => '2024',
-            ],
-            [
-                'record_code' => 'CR-2025-S2-001',
-                'course' => 'Network Security',
-                'lecturer' => 'Eko Saputra, M.Kom',
-                'period' => 'Semester 2 - 2025',
-                'batch' => '2024',
-            ],
-            [
-                'record_code' => 'CR-2026-S1-001',
-                'course' => 'Data Structures',
-                'lecturer' => 'Dr. Andi Pratama',
-                'period' => 'Semester 1 - 2026',
-                'batch' => '2025',
+                'class_code' => '14-B',
             ],
             [
                 'record_code' => 'CR-2026-S2-001',
-                'course' => 'Software Project Management',
-                'lecturer' => 'Dewi Lestari, M.Kom',
-                'period' => 'Semester 2 - 2026',
-                'batch' => '2025',
-            ],
-            [
-                'record_code' => 'CR-2026-S2-002',
-                'course' => 'Database Systems',
+                'course' => 'Computer Networks',
                 'lecturer' => 'Dr. Budi Santoso',
                 'period' => 'Semester 2 - 2026',
-                'batch' => '2025',
+                'class_code' => '14-B',
             ],
         ];
 
@@ -85,7 +57,7 @@ class CourseRecordSeeder extends Seeder
                 'course_id' => Course::where('course_name', $record['course'])->firstOrFail()->id,
                 'lecturer_id' => Lecturer::where('name', $record['lecturer'])->firstOrFail()->id,
                 'period_id' => Period::where('period_name', $record['period'])->firstOrFail()->id,
-                'batch_id' => Batch::where('batch_name', $record['batch'])->firstOrFail()->id,
+                'class_id' => ClassGroup::where('class_code', $record['class_code'])->firstOrFail()->id,
             ]);
         }
     }
