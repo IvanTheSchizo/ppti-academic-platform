@@ -11,17 +11,21 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('students', function (Blueprint $table) {
+        Schema::create('lecturers', function (Blueprint $table) {
             $table->id();
-            $table->string('nim')->unique();
+
+            $table->string('nip')->unique();
+            $table->string('lecturer_code')->unique();
             $table->string('name');
 
-            $table->foreignId('class_id')
-                ->constrained('class_groups')
-                ->restrictOnDelete();
+            $table->string('email_binus_edu')->unique();
+            $table->string('email_binus_ac_id')->unique();
+
+            $table->string('phone_number');
+            $table->string('jja');
+            $table->string('latest_education');
 
             $table->string('status');
-            $table->decimal('cumulative_gpa', 3, 2)->default(0);
 
             $table->timestamps();
         });
@@ -32,6 +36,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('students');
+        Schema::dropIfExists('lecturers');
     }
 };
