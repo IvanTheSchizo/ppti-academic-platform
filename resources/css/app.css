@@ -1,0 +1,81 @@
+@import 'tailwindcss';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../storage/framework/views/*.php';
+
+@theme {
+    --font-sans: 'Open Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+
+    /* Colors */
+    --color-primary: #0097da;
+    --color-primary-hover: #0086c2;
+    --color-primary-active: #0074a9;
+    --color-on-primary: #ffffff;
+
+    --color-navy: #014769;
+    --color-navy-hover: #013c57;
+    --color-navy-active: #012f45;
+
+    --color-accent: #f7941d;
+    --color-accent-text: #c2410c;
+
+    --color-chart: #0079b0;
+
+    --color-link: #0076ab;
+    --color-link-hover: #005a86;
+
+    --color-page: #f5f5f5;
+    --color-subtle: #e5e5e5;
+    --color-surface: #ffffff;
+    --color-border: #c8ced3;
+    --color-text: #1a1a1a;
+    --color-muted: #666d7a;
+
+    --color-danger: #dc2626;
+    --color-danger-hover: #b91c1c;
+    --color-danger-active: #991b1b;
+    --color-success: #16a34a;
+    --color-warning: #d97706;
+
+    /* Radius */
+    --radius-ui: 0.5rem;
+    --radius-card: 0;
+
+    /* Layout sizes (usable as w-sidebar, h-navbar, h-control, p-card, gap-card) */
+    --spacing-sidebar: 15rem;
+    --spacing-navbar: 4rem;
+    --spacing-control: 2.5rem;
+    --spacing-card: 1.5rem;
+
+    /* Type scale */
+    --text-title: 1.5rem;
+    --text-title--line-height: 2rem;
+    --text-section: 1.125rem;
+    --text-section--line-height: 1.75rem;
+    --text-sidebar: 1rem;
+    --text-sidebar--line-height: 1.5rem;
+    --text-body: 0.875rem;
+    --text-body--line-height: 1.25rem;
+    --text-caption: 0.75rem;
+    --text-caption--line-height: 1rem;
+}
+
+@layer base {
+    body:has(dialog[open]) {
+        overflow: hidden;
+    }
+
+    @media (max-width: 63.99rem) {
+        body:has([data-sidebar][data-open]) {
+            overflow: hidden;
+        }
+    }
+
+    body {
+        background-color: var(--color-page);
+        color: var(--color-text);
+        font-size: var(--text-body);
+        line-height: var(--text-body--line-height);
+    }
+}
