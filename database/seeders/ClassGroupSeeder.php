@@ -5,35 +5,28 @@ namespace Database\Seeders;
 use App\Models\Batch;
 use App\Models\ClassGroup;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 class ClassGroupSeeder extends Seeder
 {
     public function run(): void
     {
-        $classes = [
-            [
-                'batch' => 'PPTI23',
-                'class_code' => '13-A',
-            ],
-            [
-                'batch' => 'PPTI23',
-                'class_code' => '13-B',
-            ],
-            [
-                'batch' => 'PPTI24',
-                'class_code' => '14-A',
-            ],
-            [
-                'batch' => 'PPTI24',
-                'class_code' => '14-B',
-            ],
-        ];
+        Schema::disableForeignKeyConstraints();
+        ClassGroup::truncate();
+        Schema::enableForeignKeyConstraints();
 
-        foreach ($classes as $class) {
-            ClassGroup::create([
-                'batch_id' => Batch::where('batch_name', $class['batch'])->firstOrFail()->id,
-                'class_code' => $class['class_code'],
-            ]);
+        $batches = Batch::all();
+
+        foreach ($batches as $batch) {
+            preg_match('/\d+/', $batch->batch_name, $matches);
+            $num = $matches[0] ?? $batch->id;
+
+            foreach (['A', 'B'] as $section) {
+                ClassGroup::create([
+                    'class_code' => "{$num}{$section}",
+                    'batch_id'   => $batch->id,
+                ]);
+            }
         }
     }
 }
