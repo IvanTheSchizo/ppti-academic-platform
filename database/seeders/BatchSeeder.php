@@ -4,21 +4,19 @@ namespace Database\Seeders;
 
 use App\Models\Batch;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
 
 class BatchSeeder extends Seeder
 {
     public function run(): void
     {
-        $batches = [
-        'PPTI23',
-        'PPTI24',
-        'PPTI25',
-        'PPTI26',
-    ];
+        Schema::disableForeignKeyConstraints();
+        Batch::truncate();
+        Schema::enableForeignKeyConstraints();
 
-        foreach ($batches as $batchName) {
+        for ($i = 1; $i <= 25; $i++) {
             Batch::create([
-                'batch_name' => $batchName,
+                'batch_name' => "PPTI {$i}",
             ]);
         }
     }

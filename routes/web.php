@@ -40,6 +40,12 @@ if (app()->isLocal()) {
 
 Route::middleware('auth')->group(function () {
 
+    Route::get('/students', [StudentController::class, 'index'])
+        ->name('students.index');
+        
+    Route::get('/students/export', [StudentController::class, 'export'])
+        ->name('students.export');
+
     Route::view('/dashboard', 'dashboard')
         ->name('dashboard');
 
@@ -64,14 +70,6 @@ Route::middleware('auth')->group(function () {
     Route::view('/grades', 'grades.index')
         ->name('grades.index');
 
-    // Existing student route with database query
-    Route::get('/student', function () {
-        $students = Student::with('classGroup.batch')->get();
-
-        return view('student', compact('students'));
-    })->name('student.index');
-
-    // Existing lecturer-related pages
     Route::view('/lecturer', 'lecturer');
     Route::view('/lecturer/profile', 'lecturer-profile');
     Route::view('/audit-log', 'audit-log');

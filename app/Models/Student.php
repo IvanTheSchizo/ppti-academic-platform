@@ -26,6 +26,18 @@ class Student extends Model
         return $this->belongsTo(ClassGroup::class, 'class_id');
     }
 
+    public function batch()
+    {
+        return $this->hasOneThrough(
+            Batch::class,
+            ClassGroup::class,
+            'id',
+            'id',
+            'class_id',
+            'batch_id'
+        );
+    }
+
     public function grades()
     {
         return $this->hasMany(StudentGrade::class);
