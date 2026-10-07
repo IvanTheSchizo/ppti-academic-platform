@@ -3,11 +3,19 @@
 @section('title', 'Audit Log')
 
 @section('content')
-    <div class="space-y-card">
-        <x-ui.page-header title="Audit Log" divider />
+    <div class="space-y-6">
+        <x-ui.page-header title="Audit Log" divider>
+            <x-slot:actions>
+                <a href="{{ route('audit-logs.export') }}">
+                    <x-ui.button type="button"><x-ui.icon name="download" /> Download</x-ui.button>
+                </a>
+            </x-slot:actions>
+        </x-ui.page-header>
 
-        <x-ui.card>
-            <x-ui.empty-state title="Audit Log" description="This page is a placeholder." icon="history" />
-        </x-ui.card>
+        {{-- Filter Bar --}}
+        @include('audit-logs.partials.filters')
+
+        {{-- Audit Log Table --}}
+        @include('audit-logs.partials.table')
     </div>
 @endsection
