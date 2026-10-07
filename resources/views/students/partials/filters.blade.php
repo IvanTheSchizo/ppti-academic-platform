@@ -17,7 +17,9 @@
             <x-form.select name="batch">
                 <option value="">All</option>
                 @foreach ($batches as $option)
-                    <option value="{{ $option }}" @selected(request()->query('batch') === $option)>{{ $option }}</option>
+                    <option value="{{ $option->batch_name }}" @selected(request()->query('batch') === $option->batch_name)>
+                        {{ $option->batch_name }}
+                    </option>
                 @endforeach
             </x-form.select>
         </div>
