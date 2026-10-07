@@ -1,11 +1,20 @@
 @props(['id', 'title', 'size' => 'md'])
 
 @php
-    $sizes = ['sm' => 'max-w-sm', 'md' => 'max-w-lg', 'lg' => 'max-w-3xl'];
+    $sizes = ['sm' => 'max-w-sm', 'md' => 'max-w-xl', 'lg' => 'max-w-3xl'];
 @endphp
 
 <dialog id="{{ $id }}" aria-labelledby="{{ $id }}-title"
-        {{ $attributes->merge(['class' => 'm-auto max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] overflow-y-auto rounded-ui border border-border bg-surface p-0 text-text backdrop:bg-black/50 ' . ($sizes[$size] ?? $sizes['md'])]) }}>
+        {{ $attributes->merge(['class' => 'm-auto max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] overflow-y-auto rounded-ui border border-border bg-surface p-0 text-text ' . ($sizes[$size] ?? $sizes['md'])]) }}
+        style="backdrop-filter: none;">
+    
+    {{-- CSS Inline khusus untuk mentok-in kegelapan backdrop si dialog HTML5 --}}
+    <style>
+        #{{ $id }}::backdrop {
+            background-color: rgba(0, 0, 0, 0.62); /* Ubah angka 0.85 ini (0 sampai 1) buat atur gelapnya */
+        }
+    </style>
+
     <div class="flex items-center justify-between border-b border-border px-card py-4">
         <h2 id="{{ $id }}-title" class="text-section">{{ $title }}</h2>
 

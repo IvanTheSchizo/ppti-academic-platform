@@ -3,11 +3,22 @@
 @section('title', 'Lecturer List')
 
 @section('content')
-    <div class="space-y-card">
-        <x-ui.page-header title="Lecturer List" divider />
+    <div class="space-y-6">
+        <x-ui.page-header title="Lecturer List" divider>
+            <x-slot:actions>
+                <a href="{{ route('lecturers.export') }}">
+                    <x-ui.button type="button"><x-ui.icon name="download" /> Download</x-ui.button>
+                </a>
+            </x-slot:actions>
+        </x-ui.page-header>
 
-        <x-ui.card>
-            <x-ui.empty-state title="Lecturer List" description="This page is a placeholder." icon="badge" />
-        </x-ui.card>
+        {{-- 1. Metric Stat Bar --}}
+        @include('lecturers.partials.stats')
+
+        {{-- 2. Search & Expandable Filters --}}
+        @include('lecturers.partials.filters')
+
+        {{-- 3. Data Table & Pagination Controls --}}
+        @include('lecturers.partials.table')
     </div>
 @endsection
