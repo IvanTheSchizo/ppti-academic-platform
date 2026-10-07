@@ -49,9 +49,6 @@ Route::middleware('auth')->group(function () {
     Route::view('/dashboard', 'dashboard')
         ->name('dashboard');
 
-    Route::view('/students', 'students.index')
-        ->name('students.index');
-
     Route::view('/lecturers', 'lecturers.index')
         ->name('lecturers.index');
 
@@ -73,7 +70,6 @@ Route::middleware('auth')->group(function () {
     Route::view('/lecturer', 'lecturer');
     Route::view('/lecturer/profile', 'lecturer-profile');
     Route::view('/audit-log', 'audit-log');
-    Route::view('/course-records', 'course-records');
 });
 
 
