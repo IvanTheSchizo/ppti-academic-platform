@@ -11,6 +11,7 @@ export default defineConfig({
             fonts: [
                 bunny('Open Sans', {
                     weights: [400, 500, 600],
+                    optimizedFallbacks: false,
                 }),
             ],
         }),
