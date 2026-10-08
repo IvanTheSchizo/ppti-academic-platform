@@ -4,9 +4,9 @@
 
 <x-ui.table :headings="[
     ['label' => 'Lecturer Code', 'key' => 'lecturer_code'],
-    'Name',
-    'Email',
-    'Status',
+    ['label' => 'Name', 'key' => 'name'],
+    ['label' => 'Email', 'key' => 'email_binus_edu'],
+    ['label' => 'Status', 'key' => 'status'],
 ]">
     @forelse ($lecturers as $lecturer)
         <tr class="cursor-pointer hover:bg-subtle/50 transition-colors" onclick="window.location='{{ route('lecturers.profile', $lecturer->id) }}'">

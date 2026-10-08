@@ -1,57 +1,44 @@
 @php
-    $filtersOpen = collect(['period', 'class', 'lecturer_code', 'range'])->contains(fn ($key) => filled(request()->query($key)));
+    $filtersOpen = collect(['action_type', 'target_entity'])->contains(fn ($key) => filled(request()->query($key)));
 @endphp
 
-<form method="GET" action="{{ route('course-records.index') }}" data-autosubmit class="space-y-4">
-    {{-- Search Bar dan Tombol Filter Sejajar --}}
+<form method="GET" action="{{ route('audit-logs.index') }}" data-autosubmit class="space-y-4">
+    {{-- Preserve active sort query parameters across filter updates --}}
+    @if(request()->filled('sort'))
+        <input type="hidden" name="sort" value="{{ request('sort') }}">
+    @endif
+    @if(request()->filled('direction'))
+        <input type="hidden" name="direction" value="{{ request('direction') }}">
+    @endif
+
     <div class="flex items-center gap-3">
         <div class="flex-1">
-            <x-form.search-input name="q" :value="request()->query('q')" placeholder="Search..." aria-label="Search course records" />
+            <x-form.search-input name="q" :value="request()->query('q')" placeholder="Search logs..." aria-label="Search audit logs" />
         </div>
 
-        <x-ui.button type="button" variant="secondary" data-toggle="#course-record-filters" aria-controls="course-record-filters" aria-expanded="{{ $filtersOpen ? 'true' : 'false' }}">
+        <x-ui.button type="button" variant="secondary" data-toggle="#audit-log-filters" aria-controls="audit-log-filters" aria-expanded="{{ $filtersOpen ? 'true' : 'false' }}">
             <x-ui.icon name="filter_alt" /> Filter
         </x-ui.button>
     </div>
 
-    {{-- Grid Filter yang Tersembunyi (Expandable) --}}
-    <div id="course-record-filters" @unless ($filtersOpen) hidden @endunless class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 rounded-ui border border-border bg-surface p-card shadow-sm">
+    <div id="audit-log-filters" @unless ($filtersOpen) hidden @endunless class="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-ui border border-border bg-surface p-card shadow-sm">
         <div>
-            <x-form.label for="period">Period</x-form.label>
-            <x-form.select name="period">
+            <x-form.label for="action_type">Action</x-form.label>
+            <x-form.select name="action_type">
                 <option value="">All</option>
-                @foreach (['2025 - Odd', '2024 - Even', '2024 - Odd'] as $option)
-                    <option value="{{ $option }}" @selected(request()->query('period') === $option)>{{ $option }}</option>
+                @foreach ($actionOptions ?? [] as $option)
+                    <option value="{{ $option }}" @selected(request()->query('action_type') === $option)>{{ $option }}</option>
                 @endforeach
             </x-form.select>
         </div>
 
         <div>
-            <x-form.label for="class">Class</x-form.label>
-            <x-form.select name="class">
+            <x-form.label for="target_entity">Target Entity</x-form.label>
+            <x-form.select name="target_entity">
                 <option value="">All</option>
-                @foreach (['L4BC', 'L4CC', 'L4B1', 'L2AC'] as $option)
-                    <option value="{{ $option }}" @selected(request()->query('class') === $option)>{{ $option }}</option>
+                @foreach ($entityOptions ?? [] as $option)
+                    <option value="{{ $option }}" @selected(request()->query('target_entity') === $option)>{{ $option }}</option>
                 @endforeach
-            </x-form.select>
-        </div>
-
-        <div>
-            <x-form.label for="lecturer_code">Lecturer</x-form.label>
-            <x-form.select name="lecturer_code">
-                <option value="">All</option>
-                @foreach (['D010101', 'D0767', 'AAP'] as $option)
-                    <option value="{{ $option }}" @selected(request()->query('lecturer_code') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
-        </div>
-
-        <div>
-            <x-form.label for="range">Range</x-form.label>
-            <x-form.select name="range">
-                <option value="">All</option>
-                <option value="high" @selected(request()->query('range') === 'high')>High</option>
-                <option value="low" @selected(request()->query('range') === 'low')>Low</option>
             </x-form.select>
         </div>
     </div>

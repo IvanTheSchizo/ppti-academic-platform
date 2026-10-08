@@ -12,7 +12,6 @@
             <td class="whitespace-nowrap px-4 py-3">{{ $log->timestamp }}</td>
             <td class="px-4 py-3 font-medium">{{ $log->admin }}</td>
             <td class="px-4 py-3">
-                {{-- Capsule button semi-transparent tanpa border dengan soft shadow --}}
                 <span class="inline-flex items-center justify-center px-5 py-1.5 rounded-full text-xs font-medium bg-black/[0.04] text-text shadow-sm border-0">
                     {{ $log->action }}
                 </span>
