@@ -38,6 +38,9 @@ Route::middleware('auth')->group(function () {
     // Pages
     // ====================
     
+    Route::get('/password', [AuthController::class, 'editPassword'])->name('password.edit');
+    Route::put('/password', [AuthController::class, 'updatePassword'])->name('password.update');
+
     Route::get('/students', [StudentController::class, 'index'])->name('students.index');
     Route::get('/students/export', [StudentController::class, 'export'])->name('students.export');
 

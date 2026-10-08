@@ -108,3 +108,28 @@ document.addEventListener('change', (event) => {
 
     event.target.closest('form[data-autosubmit]')?.requestSubmit();
 });
+
+const passwordRules = {
+    length: (value) => value.length >= 8,
+    upper: (value) => /[A-Z]/.test(value),
+    lower: (value) => /[a-z]/.test(value),
+    symbol: (value) => /[\d\W_]/.test(value),
+};
+
+document.querySelectorAll('[data-password-rules]').forEach((list) => {
+    const input = document.querySelector(list.dataset.passwordRules);
+
+    const update = () => {
+        list.querySelectorAll('[data-rule]').forEach((item) => {
+            const met = passwordRules[item.dataset.rule]?.(input.value) ?? false;
+
+            item.classList.toggle('text-success', met);
+            item.classList.toggle('text-muted', !met);
+            item.querySelector('[data-rule-met]')?.toggleAttribute('hidden', !met);
+            item.querySelector('[data-rule-unmet]')?.toggleAttribute('hidden', met);
+        });
+    };
+
+    input.addEventListener('input', update);
+    update();
+});

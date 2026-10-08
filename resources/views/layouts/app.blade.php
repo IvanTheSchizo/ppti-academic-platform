@@ -9,11 +9,15 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="flex min-h-screen flex-col font-sans antialiased">
-    <x-layout.navbar />
+    @php($withSidebar = trim($__env->yieldContent('sidebar')) !== 'none')
+
+    <x-layout.navbar :sidebar="$withSidebar" />
     <x-ui.flash />
 
     <div class="flex flex-1">
-        <x-layout.sidebar />
+        @if ($withSidebar)
+            <x-layout.sidebar />
+        @endif
 
         <main class="min-w-0 flex-1 p-4 sm:p-6 lg:p-8">
             @yield('content')
