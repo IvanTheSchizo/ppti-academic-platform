@@ -1,10 +1,10 @@
 <x-ui.table :headings="[
     ['label' => 'Record Code', 'key' => 'record_code'],
-    'Period',
-    'Course ID',
-    'Class',
-    'Lecturer Code',
-    'Students',
+    ['label' => 'Period', 'key' => 'period'],
+    ['label' => 'Course ID', 'key' => 'course_id'],
+    ['label' => 'Class', 'key' => 'class'],
+    ['label' => 'Lecturer Code', 'key' => 'lecturer_code'],
+    ['label' => 'Students', 'key' => 'students'],
 ]">
     @forelse ($courseRecords as $record)
         <tr>
@@ -13,7 +13,7 @@
             <td>{{ $record->course_id }}</td>
             <td>{{ $record->class }}</td>
             <td>{{ $record->lecturer_code }}</td>
-            <td>{{ $record->students_count ?? 18 }}</td>
+            <td>{{ $record->students_count }}</td>
         </tr>
     @empty
         <tr>
