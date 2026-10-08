@@ -13,25 +13,25 @@ class StudentGradeSeeder extends Seeder
     {
         $grades = [
             [
-                'student_nim' => '20230001',
+                'student_nim' => '2601581007',
                 'record_code' => 'CR-2024-S1-001',
                 'numeric_grade' => 4.00,
                 'letter_grade' => 'A',
             ],
             [
-                'student_nim' => '20230002',
+                'student_nim' => '2601581008',
                 'record_code' => 'CR-2024-S1-002',
                 'numeric_grade' => 3.70,
                 'letter_grade' => 'A-',
             ],
             [
-                'student_nim' => '20240001',
+                'student_nim' => '2701581010',
                 'record_code' => 'CR-2025-S1-001',
                 'numeric_grade' => 3.30,
                 'letter_grade' => 'B+',
             ],
             [
-                'student_nim' => '20240002',
+                'student_nim' => '2701581011',
                 'record_code' => 'CR-2025-S1-002',
                 'numeric_grade' => 3.00,
                 'letter_grade' => 'B',
