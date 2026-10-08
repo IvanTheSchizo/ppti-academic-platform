@@ -179,12 +179,15 @@
         <x-ui.card title="Modal and empty state" icon="school">
             <div class="space-y-6">
                 <x-ui.button type="button" data-modal-open="#demo-modal">Open modal</x-ui.button>
+                <x-ui.button type="button" variant="secondary" data-modal-open="#demo-confirm">Open confirm</x-ui.button>
 
                 <x-ui.empty-state title="No students found" description="Try changing the search or filters." icon="search">
                     <x-ui.button type="button" variant="secondary">Clear filters</x-ui.button>
                 </x-ui.empty-state>
             </div>
         </x-ui.card>
+
+        <x-ui.confirm id="demo-confirm" />
 
         <x-ui.modal id="demo-modal" title="Delete student?">
             <p>This will permanently remove the student record. This action cannot be undone.</p>

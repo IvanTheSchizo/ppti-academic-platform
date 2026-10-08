@@ -36,7 +36,17 @@ document.addEventListener('click', (event) => {
         return;
     }
 
-    if (event.target.closest('[data-modal-close]') || event.target instanceof HTMLDialogElement) {
+    const accept = event.target.closest('[data-confirm-accept]');
+
+    if (accept) {
+        const dialog = accept.closest('dialog');
+
+        dialog.close();
+        dialog.dispatchEvent(new CustomEvent('confirmed', { bubbles: true }));
+        return;
+    }
+
+    if (event.target.closest('[data-modal-close]') ||event.target instanceof HTMLDialogElement) {
         (event.target.closest('dialog') ?? event.target).close();
     }
 });
