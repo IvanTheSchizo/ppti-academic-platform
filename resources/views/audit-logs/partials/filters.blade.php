@@ -1,45 +1,29 @@
-@php
-    $filtersOpen = collect(['action_type', 'target_entity'])->contains(fn ($key) => filled(request()->query($key)));
-@endphp
-
-<form method="GET" action="{{ route('audit-logs.index') }}" data-autosubmit class="space-y-4">
-    {{-- Preserve active sort query parameters across filter updates --}}
-    @if(request()->filled('sort'))
+<form method="GET" action="{{ route('audit-logs.index') }}" data-autosubmit class="flex flex-wrap items-center gap-3">
+    {{-- Preserve active sort across filter updates --}}
+    @if (request()->filled('sort'))
         <input type="hidden" name="sort" value="{{ request('sort') }}">
     @endif
-    @if(request()->filled('direction'))
+    @if (request()->filled('direction'))
         <input type="hidden" name="direction" value="{{ request('direction') }}">
     @endif
 
-    <div class="flex items-center gap-3">
-        <div class="flex-1">
-            <x-form.search-input name="q" :value="request()->query('q')" placeholder="Search logs..." aria-label="Search audit logs" />
-        </div>
+    <x-form.date-range name="date" :from="request()->query('date_from')" :to="request()->query('date_to')" class="w-full sm:w-80" />
 
-        <x-ui.button type="button" variant="secondary" data-toggle="#audit-log-filters" aria-controls="audit-log-filters" aria-expanded="{{ $filtersOpen ? 'true' : 'false' }}">
-            <x-ui.icon name="filter_alt" /> Filter
-        </x-ui.button>
-    </div>
+    <x-form.select name="admin_id" aria-label="Filter by admin" class="sm:w-56">
+        <option value="">All Admins</option>
+        @foreach ($adminOptions ?? [] as $admin)
+            <option value="{{ $admin->id }}" @selected((string) request()->query('admin_id') === (string) $admin->id)>{{ $admin->username }}</option>
+        @endforeach
+    </x-form.select>
 
-    <div id="audit-log-filters" @unless ($filtersOpen) hidden @endunless class="grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-ui border border-border bg-surface p-card shadow-sm">
-        <div>
-            <x-form.label for="action_type">Action</x-form.label>
-            <x-form.select name="action_type">
-                <option value="">All</option>
-                @foreach ($actionOptions ?? [] as $option)
-                    <option value="{{ $option }}" @selected(request()->query('action_type') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
-        </div>
+    <x-form.select name="action_type" aria-label="Filter by action" class="sm:w-56">
+        <option value="">All Actions</option>
+        @foreach ($actionOptions ?? [] as $option)
+            <option value="{{ $option }}" @selected(request()->query('action_type') === $option)>{{ ucfirst(strtolower($option)) }}</option>
+        @endforeach
+    </x-form.select>
 
-        <div>
-            <x-form.label for="target_entity">Target Entity</x-form.label>
-            <x-form.select name="target_entity">
-                <option value="">All</option>
-                @foreach ($entityOptions ?? [] as $option)
-                    <option value="{{ $option }}" @selected(request()->query('target_entity') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
-        </div>
-    </div>
+    <x-ui.button variant="secondary" type="button" :href="route('audit-logs.index')">
+        <x-ui.icon name="filter_alt_off" /> Reset
+    </x-ui.button>
 </form>

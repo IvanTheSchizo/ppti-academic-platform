@@ -143,3 +143,21 @@ document.querySelectorAll('[data-password-rules]').forEach((list) => {
     input.addEventListener('input', update);
     update();
 });
+
+const syncDateRange = (range) => {
+    const empty = [...range.querySelectorAll('input[type="date"]')].every((input) => input.value === '');
+
+    range.toggleAttribute('data-empty', empty);
+};
+
+document.querySelectorAll('[data-date-range]').forEach(syncDateRange);
+
+document.addEventListener('input', (event) => {
+    const range = event.target.closest('[data-date-range]');
+
+    if (range) {
+        syncDateRange(range);
+    }
+});
+
+window.addEventListener('pageshow', () => document.querySelectorAll('[data-date-range]').forEach(syncDateRange));
