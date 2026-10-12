@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Batch;
 use App\Models\ClassGroup;
+use App\Models\Period;
 use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class StudentController extends Controller
 {
@@ -94,17 +96,13 @@ class StudentController extends Controller
             return response()->json($students);
         }
 
-        // Dynamic Options for Form Dropdowns (1 -> 25)
+        // Dynamic options for the filter dropdowns
         $batches = Batch::all()->sortBy(function ($batch) {
             return (int) preg_replace('/\D/', '', $batch->batch_name);
         }, SORT_NUMERIC)->values();
 
         $classes = ClassGroup::pluck('class_code')->unique()->sort()->values();
-        $classGroups = ClassGroup::with('batch')->get()->sortBy(function ($classGroup) {
-            return ($classGroup->batch?->batch_name ?? '') . '-' . $classGroup->class_code;
-        })->values();
-
-        return view('students.index', compact('students', 'stats', 'batches', 'classes', 'classGroups'));
+        return view('students.index', compact('students', 'stats', 'batches', 'classes'));
     }
 
     public function export()
@@ -137,54 +135,179 @@ class StudentController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function store(Request $request)
+    public function show(Request $request, Student $student)
     {
-        $validated = $request->validate([
-            'nim'            => 'required|unique:students,nim',
-            'name'           => 'required|string|max:255',
-            'class_id'       => 'required|exists:class_groups,id',
-            'status'         => 'required|in:Active,Graduated,On Leave',
-            'cumulative_gpa' => 'nullable|numeric|between:0.00,4.00',
-        ]);
+        $student->load('classGroup.batch');
 
-        $validated['cumulative_gpa'] = $validated['cumulative_gpa'] ?? 0;
-        $student = Student::create($validated);
-
-        if ($request->expectsJson()) {
-            return response()->json($student->load('classGroup.batch'), 201);
+        if ($request->wantsJson()) {
+            return response()->json($student);
         }
 
-        return redirect()->route('students.index')->with('success', 'Student added successfully.');
-    }
+        $activeTab = $request->query('tab') === 'grades' ? 'grades' : 'overview';
+        $semesterGpa = collect();
+        $grades = null;
 
-    public function show(Student $student)
-    {
-        return response()->json($student->load('classGroup.batch'));
+        if ($activeTab === 'grades') {
+            $query = $this->gradesQuery($student);
+
+            if ($request->filled('q')) {
+                $q = $request->input('q');
+                $query->where(function ($sub) use ($q) {
+                    $sub->whereHas('courseRecord.course', function ($cq) use ($q) {
+                        $cq->where('course_name', 'like', "%{$q}%")
+                            ->orWhere('course_code', 'like', "%{$q}%");
+                    })->orWhereHas('courseRecord.lecturer', function ($lq) use ($q) {
+                        $lq->where('name', 'like', "%{$q}%");
+                    });
+                });
+            }
+
+            $perPage = max((int) $request->input('per_page', 10), 1);
+            $grades = $query->paginate($perPage)->withQueryString();
+
+            $grades->getCollection()->transform(function ($grade) {
+                $record = $grade->courseRecord;
+
+                return (object) [
+                    'period'      => $record->period?->period_name ?? '-',
+                    'course_id'   => $record->course?->course_code ?? '-',
+                    'course_name' => $record->course?->course_name ?? '-',
+                    'lecturer'    => $record->lecturer,
+                    'sks'         => $record->course?->sks ?? '-',
+                    'grade'       => $grade->letter_grade,
+                ];
+            });
+        } else {
+            // Average grade per period, oldest first, for the Grade Point chart
+            $semesterGpa = $this->semesterAverages($student);
+        }
+
+        $classGroups = ClassGroup::with('batch')->get()
+            ->sortBy(fn ($classGroup) => ($classGroup->batch?->batch_name ?? '') . '-' . $classGroup->class_code)
+            ->values();
+
+        $periods = Period::orderBy('start_date')->get(['id', 'period_name']);
+
+        return view('students.profile', compact('student', 'activeTab', 'grades', 'semesterGpa', 'classGroups', 'periods'));
     }
 
     public function update(Request $request, Student $student)
     {
         $validated = $request->validate([
-            'nim'            => 'sometimes|unique:students,nim,' . $student->id,
-            'name'           => 'sometimes|string|max:255',
-            'class_id'       => 'sometimes|exists:class_groups,id',
-            'status'         => 'sometimes|in:Active,Graduated,On Leave',
-            'cumulative_gpa' => 'nullable|numeric|between:0.00,4.00',
+            'nim'                    => 'required|string|max:255|unique:students,nim,' . $student->id,
+            'name'                   => 'required|string|max:255',
+            'class_id'               => 'required|exists:class_groups,id',
+            'status'                 => 'required|in:Active,Graduated,On Leave',
+            'gender'                 => 'nullable|in:Male,Female',
+            'email'                  => 'nullable|email|max:255',
+            'phone_number'           => 'nullable|string|max:30',
+            'date_of_birth'          => 'nullable|date|before_or_equal:today',
+            'semesters'              => 'nullable|array',
+            'semesters.*.period_id'  => 'required|distinct|exists:periods,id',
+            'semesters.*.gpa'        => 'required|numeric|between:0,4',
+        ], [
+            'semesters.*.period_id.required' => 'Select a period for every semester GPA row.',
+            'semesters.*.period_id.distinct' => 'Each semester can only be listed once.',
+            'semesters.*.gpa.required'       => 'Enter a GPA for every semester row.',
+            'semesters.*.gpa.between'        => 'Semester GPA must be between 0.00 and 4.00.',
         ]);
 
-        if (array_key_exists('cumulative_gpa', $validated)) {
-            $validated['cumulative_gpa'] = $validated['cumulative_gpa'] ?? 0;
-        }
+        $semesters = collect($validated['semesters'] ?? []);
+        unset($validated['semesters']);
 
-        $student->update($validated);
+        // Cumulative GPA is calculated from the semester GPAs.
+        $validated['cumulative_gpa'] = $semesters->isEmpty() ? 0 : round($semesters->avg('gpa'), 2);
 
-        if ($request->expectsJson()) {
-            return response()->json($student->load('classGroup.batch'));
-        }
+        DB::transaction(function () use ($student, $validated, $semesters) {
+            $student->update($validated);
 
-        return redirect()->route('students.index')->with('success', 'Student updated successfully.');
+            $student->semesterGpas()->delete();
+            $student->semesterGpas()->createMany(
+                $semesters->map(fn ($row) => ['period_id' => $row['period_id'], 'gpa' => $row['gpa']])->all()
+            );
+        });
+
+        return redirect()->route('students.profile', $student->id)->with('success', 'Student updated successfully.');
+    }
+    /**
+     * Download one student's profile as CSV: the grade list for the Grades tab,
+     * otherwise the student's details and average grade per period.
+     */
+    public function exportProfile(Request $request, Student $student)
+    {
+        $grades = $request->query('tab') === 'grades';
+        $filename = 'student_' . $student->nim . ($grades ? '_grades' : '') . '.csv';
+
+        $callback = function () use ($student, $grades) {
+            $file = fopen('php://output', 'w');
+
+            if ($grades) {
+                fputcsv($file, ['Period', 'Course ID', 'Course', 'Lecturer', 'SCU', 'Grade']);
+
+                $this->gradesQuery($student)->chunk(200, function ($rows) use ($file) {
+                    foreach ($rows as $row) {
+                        $record = $row->courseRecord;
+
+                        fputcsv($file, [
+                            $record->period?->period_name,
+                            $record->course?->course_code,
+                            $record->course?->course_name,
+                            $record->lecturer?->name,
+                            $record->course?->sks,
+                            $row->letter_grade,
+                        ]);
+                    }
+                });
+            } else {
+                $student->load('classGroup.batch');
+
+                fputcsv($file, ['Student ID', 'Name', 'Batch', 'Class', 'Status', 'Cumulative GPA']);
+                fputcsv($file, [
+                    $student->nim,
+                    $student->name,
+                    $student->classGroup?->batch?->batch_name,
+                    $student->classGroup?->class_code,
+                    $student->status,
+                    $student->cumulative_gpa,
+                ]);
+                fputcsv($file, []);
+                fputcsv($file, ['Period', 'Semester GPA']);
+
+                foreach ($this->semesterAverages($student) as $row) {
+                    fputcsv($file, [$row['label'], number_format($row['value'], 2)]);
+                }
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
     }
 
+    private function gradesQuery(Student $student)
+    {
+        return $student->grades()
+            ->with(['courseRecord.course', 'courseRecord.lecturer', 'courseRecord.period'])
+            ->join('course_records', 'student_grades.course_record_id', '=', 'course_records.id')
+            ->join('periods', 'course_records.period_id', '=', 'periods.id')
+            ->select('student_grades.*')
+            ->orderByDesc('periods.start_date');
+    }
+
+    /**
+     * The student's stored GPA per period, oldest first.
+     */
+    private function semesterAverages(Student $student)
+    {
+        return $student->semesterGpas()
+            ->join('periods', 'student_semester_gpas.period_id', '=', 'periods.id')
+            ->orderBy('periods.start_date')
+            ->get(['periods.period_name as label', 'student_semester_gpas.gpa as value'])
+            ->map(fn ($row) => ['label' => $row->label, 'value' => (float) $row->value]);
+    }
     public function destroy(Student $student)
     {
         $student->delete();

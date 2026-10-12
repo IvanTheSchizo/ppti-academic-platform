@@ -3,10 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClassGroup;
+use App\Models\Course;
 use App\Models\CourseRecord;
 use App\Models\Lecturer;
+use App\Models\LecturerPerformance;
 use App\Models\Period;
+use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class CourseRecordController extends Controller
 {
@@ -47,10 +52,7 @@ class CourseRecordController extends Controller
         // 2. Period Filter
         if ($request->filled('period')) {
             $periodVal = $request->input('period');
-            $query->whereHas('period', function ($pq) use ($periodVal) {
-                $pq->where('period_name', $periodVal)
-                   ->orWhereRaw("CONCAT(academic_year, ' - ', semester) = ?", [$periodVal]);
-            });
+            $query->whereHas('period', fn ($pq) => $pq->where('period_name', $periodVal));
         }
 
         // 3. Class Group Filter
@@ -106,14 +108,10 @@ class CourseRecordController extends Controller
 
         // Transform for presentation
         $courseRecords->getCollection()->transform(function ($record) {
-            $periodDisplay = $record->period
-                ? ($record->period->period_name ?? "{$record->period->academic_year} - {$record->period->semester}")
-                : '-';
-
             return (object) [
                 'id'             => $record->id,
                 'record_code'    => $record->record_code,
-                'period'         => $periodDisplay,
+                'period'         => $record->period?->period_name ?? '-',
                 'course_id'      => $record->course?->course_code ?? '-',
                 'class'          => $record->classGroup?->class_code ?? '-',
                 'lecturer_code'  => $record->lecturer?->lecturer_code ?? '-',
@@ -126,9 +124,7 @@ class CourseRecordController extends Controller
         }
 
         // 8. Dynamic Filter Options directly from DB
-        $periodOptions = Period::all()->map(function ($p) {
-            return $p->period_name ?? "{$p->academic_year} - {$p->semester}";
-        })->unique()->sort()->values();
+        $periodOptions = Period::pluck('period_name')->unique()->sort()->values();
 
         $classOptions = ClassGroup::pluck('class_code')->unique()->sort()->values();
         $lecturerOptions = Lecturer::pluck('lecturer_code')->unique()->sort()->values();
@@ -139,6 +135,146 @@ class CourseRecordController extends Controller
             'classOptions',
             'lecturerOptions'
         ));
+    }
+
+    /**
+     * Display one course record with its details and enrolled students.
+     */
+    public function show(Request $request, CourseRecord $courseRecord)
+    {
+        $courseRecord->load(['course', 'lecturer', 'period', 'classGroup', 'lecturerPerformance']);
+
+        if ($request->wantsJson()) {
+            return response()->json($courseRecord);
+        }
+
+        $students = $this->studentsQuery($courseRecord, $request->input('q'))
+            ->paginate(max((int) $request->input('per_page', 10), 1))
+            ->withQueryString();
+
+        return view('course-records.show', [
+            'record' => $courseRecord,
+            'students' => $students,
+            'courses' => Course::orderBy('course_code')->get(['id', 'course_code', 'course_name']),
+            'periods' => Period::orderBy('start_date')->get(['id', 'period_name']),
+            'classGroups' => ClassGroup::orderBy('class_code')->get(['id', 'class_code']),
+            'lecturers' => Lecturer::orderBy('name')->get(['id', 'name']),
+        ]);
+    }
+
+    /**
+     * Update a course record's course, period, class, lecturer and IKADQ.
+     */
+    public function update(Request $request, CourseRecord $courseRecord)
+    {
+        $validated = $request->validate([
+            'course_id'   => 'required|exists:courses,id',
+            'period_id'   => 'required|exists:periods,id',
+            'class_id'    => [
+                'required', 'exists:class_groups,id',
+                Rule::unique('course_records', 'class_id')
+                    ->where('course_id', $request->input('course_id'))
+                    ->where('period_id', $request->input('period_id'))
+                    ->ignore($courseRecord->id),
+            ],
+            'lecturer_id' => 'required|exists:lecturers,id',
+            'ikadq'       => 'nullable|numeric|between:0,4',
+        ], [
+            'class_id.unique' => 'A course record for this course, period and class already exists.',
+        ]);
+
+        DB::transaction(function () use ($courseRecord, $validated) {
+            $courseRecord->update(collect($validated)->only(['course_id', 'period_id', 'class_id', 'lecturer_id'])->all());
+
+            if (filled($validated['ikadq'] ?? null)) {
+                LecturerPerformance::updateOrCreate(
+                    ['course_record_id' => $courseRecord->id],
+                    ['lecturer_id' => $validated['lecturer_id'], 'ikadq' => $validated['ikadq']],
+                );
+            } else {
+                LecturerPerformance::where('course_record_id', $courseRecord->id)->delete();
+            }
+        });
+
+        return redirect()->route('course-records.show', $courseRecord->id)->with('success', 'Course record updated successfully.');
+    }
+
+    /**
+     * Enrol a student in the course record (no grade yet).
+     */
+    public function addStudent(Request $request, CourseRecord $courseRecord)
+    {
+        $validated = $request->validate(['student_id' => 'required|exists:students,id']);
+
+        $grade = $courseRecord->studentGrades()->firstOrCreate(['student_id' => $validated['student_id']]);
+        $message = $grade->wasRecentlyCreated ? 'Student added to the course record.' : 'That student is already in this course record.';
+
+        session()->flash('success', $message);
+
+        return response()->json(['message' => $message]);
+    }
+
+    /**
+     * Remove a student (and their grade) from the course record.
+     */
+    public function removeStudent(CourseRecord $courseRecord, Student $student)
+    {
+        $courseRecord->studentGrades()->where('student_id', $student->id)->delete();
+
+        return redirect()->route('course-records.show', $courseRecord->id)->with('success', 'Student removed from the course record.');
+    }
+    /**
+     * Download one course record (details plus enrolled students) as CSV.
+     */
+    public function exportRecord(CourseRecord $courseRecord)
+    {
+        $courseRecord->load(['course', 'lecturer', 'period', 'classGroup', 'lecturerPerformance']);
+
+        $callback = function () use ($courseRecord) {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, ['Record Code', 'Course Code', 'Course Name', 'Period', 'Class', 'Lecturer', 'IKADQ']);
+            fputcsv($handle, [
+                $courseRecord->record_code,
+                $courseRecord->course?->course_code,
+                $courseRecord->course?->course_name,
+                $courseRecord->period?->period_name,
+                $courseRecord->classGroup?->class_code,
+                $courseRecord->lecturer?->name,
+                $courseRecord->lecturerPerformance?->ikadq,
+            ]);
+            fputcsv($handle, []);
+            fputcsv($handle, ['NIM', 'Name', 'Batch', 'Class']);
+
+            $this->studentsQuery($courseRecord)->chunk(200, function ($students) use ($handle) {
+                foreach ($students as $student) {
+                    fputcsv($handle, [
+                        $student->nim,
+                        $student->name,
+                        $student->classGroup?->batch?->batch_name,
+                        $student->classGroup?->class_code,
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="course_record_' . $courseRecord->record_code . '.csv"',
+        ]);
+    }
+
+    private function studentsQuery(CourseRecord $courseRecord, ?string $search = null)
+    {
+        return Student::query()
+            ->with('classGroup.batch')
+            ->whereIn('id', $courseRecord->studentGrades()->select('student_id'))
+            ->when($search, fn ($query, $q) => $query->where(function ($sub) use ($q) {
+                $sub->where('name', 'like', "%{$q}%")->orWhere('nim', 'like', "%{$q}%");
+            }))
+            ->orderBy('nim');
     }
 
     /**
@@ -171,7 +307,7 @@ class CourseRecordController extends Controller
                     foreach ($records as $record) {
                         fputcsv($handle, [
                             $record->record_code,
-                            $record->period?->period_name ?? "{$record->period?->academic_year} {$record->period?->semester}",
+                            $record->period?->period_name ?? '-',
                             $record->course?->course_code ?? '-',
                             $record->course?->course_name ?? '-',
                             $record->classGroup?->class_code ?? '-',

@@ -14,12 +14,22 @@ class Student extends Model
         'name',
         'class_id',
         'status',
+        'gender',
+        'email',
+        'phone_number',
+        'date_of_birth',
         'cumulative_gpa',
     ];
 
     protected $casts = [
         'cumulative_gpa' => 'decimal:2',
+        'date_of_birth' => 'date',
     ];
+
+    public function semesterGpas()
+    {
+        return $this->hasMany(StudentSemesterGpa::class);
+    }
 
     public function classGroup()
     {

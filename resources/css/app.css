@@ -79,10 +79,3 @@
         line-height: var(--text-body--line-height);
     }
 }
-
-
-/* Student list: keep row actions hidden until Edit List is enabled. */
-[data-student-edit-table][data-student-edit-mode="off"] table thead th:last-child,
-[data-student-edit-table][data-student-edit-mode="off"] table tbody td:last-child {
-    display: none;
-}

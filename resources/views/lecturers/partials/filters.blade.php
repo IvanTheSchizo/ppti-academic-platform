@@ -26,7 +26,7 @@
             <x-form.label for="status">Status</x-form.label>
             <x-form.select name="status">
                 <option value="">All</option>
-                @foreach (['Active', 'Inactive', 'On Leave'] as $option)
+                @foreach (['Active', 'Inactive'] as $option)
                     <option value="{{ $option }}" @selected(request()->query('status') === $option)>{{ $option }}</option>
                 @endforeach
             </x-form.select>

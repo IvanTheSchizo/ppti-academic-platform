@@ -18,6 +18,7 @@ class DatabaseSeeder extends Seeder
             CourseRecordSeeder::class,
             StudentSeeder::class,
             StudentGradeSeeder::class,
+            StudentSemesterGpaSeeder::class,
             LecturerPerformanceSeeder::class,
         ]);
     }

@@ -19,6 +19,7 @@ class Lecturer extends Model
         'jja',
         'latest_education',
         'status',
+        'gender',
     ];
 
     public function courseRecords()

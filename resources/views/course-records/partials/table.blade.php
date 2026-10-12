@@ -7,7 +7,7 @@
     ['label' => 'Students', 'key' => 'students'],
 ]">
     @forelse ($courseRecords as $record)
-        <tr>
+        <tr data-row-href="{{ route('course-records.show', $record->id) }}" class="cursor-pointer">
             <td>{{ $record->record_code }}</td>
             <td>{{ $record->period }}</td>
             <td>{{ $record->course_id }}</td>

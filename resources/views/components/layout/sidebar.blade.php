@@ -3,6 +3,7 @@
         ['Student', 'students.index', 'person'],
         ['Lecturer', 'lecturers.index', 'badge'],
         ['Course Records', 'course-records.index', 'school'],
+        ['Input Data', 'input-data.index', 'note_add'],
         ['Audit Log', 'audit-logs.index', 'history'],
     ];
 @endphp

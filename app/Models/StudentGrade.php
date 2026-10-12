@@ -9,6 +9,12 @@ class StudentGrade extends Model
 {
     use HasFactory;
 
+    /** Letter grade => grade point. */
+    public const GRADE_POINTS = [
+        'A' => 4.00, 'A-' => 3.70, 'B+' => 3.30, 'B' => 3.00, 'B-' => 2.70,
+        'C+' => 2.30, 'C' => 2.00, 'D' => 1.00, 'E' => 0.00,
+    ];
+
     protected $fillable = [
         'student_id',
         'course_record_id',

@@ -96,12 +96,13 @@ class LecturerController extends Controller
                 });
             }
 
-            $courses = $courseQuery->paginate(10)->withQueryString();
+            $perPage = max((int) $request->input('per_page', 10), 1);
+            $courses = $courseQuery->paginate($perPage)->withQueryString();
 
             // Transform into view presentation objects
             $courses->getCollection()->transform(function ($record) {
                 return (object) [
-                    'period'         => $record->period ? "{$record->period->academic_year} - {$record->period->semester}" : '-',
+                    'period'         => $record->period?->period_name ?? '-',
                     'course_id'      => $record->course?->course_code ?? '-',
                     'course_name'    => $record->course?->course_name ?? '-',
                     'class'          => $record->classGroup?->class_code ?? '-',
@@ -118,33 +119,9 @@ class LecturerController extends Controller
             ]);
         }
 
-        return view('lecturers.profile', compact('lecturer', 'activeTab', 'courses'));
-    }
+        $kpi = $lecturer->performances()->avg('ikadq');
 
-    /**
-     * Store a newly created lecturer.
-     */
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'nip'               => 'required|string|max:50|unique:lecturers,nip',
-            'lecturer_code'     => 'required|string|max:20|unique:lecturers,lecturer_code',
-            'name'              => 'required|string|max:255',
-            'email_binus_edu'   => 'nullable|email|max:255|unique:lecturers,email_binus_edu',
-            'email_binus_ac_id' => 'nullable|email|max:255|unique:lecturers,email_binus_ac_id',
-            'phone_number'      => 'nullable|string|max:30',
-            'jja'               => 'nullable|string|max:100',
-            'latest_education'  => 'nullable|string|max:50',
-            'status'            => 'required|string|in:Active,Inactive,On Leave',
-        ]);
-
-        $lecturer = Lecturer::create($validated);
-
-        if ($request->wantsJson()) {
-            return response()->json($lecturer, 201);
-        }
-
-        return redirect()->route('lecturers.index')->with('success', 'Lecturer created successfully.');
+        return view('lecturers.profile', compact('lecturer', 'activeTab', 'courses', 'kpi'));
     }
 
     /**
@@ -153,15 +130,15 @@ class LecturerController extends Controller
     public function update(Request $request, Lecturer $lecturer)
     {
         $validated = $request->validate([
-            'nip'               => 'required|string|max:50|unique:lecturers,nip,' . $lecturer->id,
             'lecturer_code'     => 'required|string|max:20|unique:lecturers,lecturer_code,' . $lecturer->id,
             'name'              => 'required|string|max:255',
             'latest_education'  => 'nullable|string|max:50',
             'jja'               => 'nullable|string|max:100',
-            'status'            => 'required|string|in:Active,Inactive,On Leave',
+            'status'            => 'required|string|in:Active,Inactive',
             'email_binus_edu'   => 'nullable|email|max:255|unique:lecturers,email_binus_edu,' . $lecturer->id,
             'email_binus_ac_id' => 'nullable|email|max:255|unique:lecturers,email_binus_ac_id,' . $lecturer->id,
             'phone_number'      => 'nullable|string|max:30',
+            'gender'            => 'nullable|in:Male,Female',
         ]);
 
         $lecturer->update($validated);

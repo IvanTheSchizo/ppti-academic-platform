@@ -15,10 +15,6 @@ class Course extends Model
         'sks',
     ];
 
-    protected $casts = [
-        'sks' => 'integer',
-    ];
-
     public function courseRecords()
     {
         return $this->hasMany(CourseRecord::class);

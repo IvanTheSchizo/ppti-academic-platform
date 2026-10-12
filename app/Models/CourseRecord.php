@@ -17,6 +17,24 @@ class CourseRecord extends Model
         'record_code',
     ];
 
+    /**
+     * Next free record code for a period, e.g. CR-2025-S1-003 for "Semester 1 - 2025".
+     */
+    public static function nextCodeFor(Period $period): string
+    {
+        $prefix = preg_match('/Semester\s+(\d+)\s*-\s*(\d{4})/i', $period->period_name, $m)
+            ? "CR-{$m[2]}-S{$m[1]}"
+            : "CR-P{$period->id}";
+
+        $next = static::where('period_id', $period->id)->count() + 1;
+
+        do {
+            $code = sprintf('%s-%03d', $prefix, $next++);
+        } while (static::where('record_code', $code)->exists());
+
+        return $code;
+    }
+
     public function course()
     {
         return $this->belongsTo(Course::class);
