@@ -1,5 +1,5 @@
 @php
-    $filtersOpen = collect(['period', 'class', 'lecturer_code', 'range'])->contains(fn ($key) => filled(request()->query($key)));
+    $filtersOpen = collect(['period', 'class', 'lecturer_code', 'course'])->contains(fn ($key) => filled(request()->query($key)));
 @endphp
 
 <form method="GET" action="{{ route('course-records.index') }}" data-autosubmit class="space-y-6">
@@ -51,11 +51,12 @@
         </div>
 
         <div>
-            <x-form.label for="range">Range</x-form.label>
-            <x-form.select name="range">
+            <x-form.label for="course">Course</x-form.label>
+            <x-form.select name="course">
                 <option value="">All</option>
-                <option value="high" @selected(request()->query('range') === 'high')>High (&ge; 20)</option>
-                <option value="low" @selected(request()->query('range') === 'low')>Low (&lt; 20)</option>
+                @foreach ($courseOptions as $option)
+                    <option value="{{ $option->course_code }}" @selected(request()->query('course') === $option->course_code)>{{ $option->course_code }} — {{ $option->course_name }}</option>
+                @endforeach
             </x-form.select>
         </div>
     </div>

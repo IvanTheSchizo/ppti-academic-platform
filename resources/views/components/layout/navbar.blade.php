@@ -27,14 +27,14 @@
             @endauth
 
             <div class="flex flex-col gap-2">
-                <x-ui.button variant="secondary" :href="route('password.edit')" class="w-full">
+                <x-ui.button variant="secondary" :href="route('password.edit')" class="w-full justify-start! gap-3">
                     <x-ui.icon name="lock" class="size-5" />
                     Change Password
                 </x-ui.button>
 
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
-                    <x-ui.button variant="secondary" class="w-full">
+                    <x-ui.button variant="secondary" class="w-full justify-start! gap-3">
                         <x-ui.icon name="logout" class="size-5" />
                         Logout
                     </x-ui.button>

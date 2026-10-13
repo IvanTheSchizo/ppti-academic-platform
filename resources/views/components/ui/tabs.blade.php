@@ -7,7 +7,7 @@
         : 'border-accent font-semibold text-accent-text';
 @endphp
 
-<nav aria-label="Tabs" {{ $attributes->merge(['class' => 'flex gap-6 overflow-x-auto border-b border-border']) }}>
+<nav aria-label="Tabs" {{ $attributes->merge(['class' => 'flex gap-6 overflow-x-auto overflow-y-hidden border-b border-border']) }}>
     @foreach ($tabs as $tab)
         @php $active = ! empty($tab['active']); @endphp
         <a href="{{ $tab['href'] ?? '#' }}"

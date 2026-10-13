@@ -71,15 +71,11 @@ class CourseRecordController extends Controller
             });
         }
 
-        // 5. Student Count Range Filter ('high' >= 20, 'low' < 20)
-        if ($request->filled('range')) {
-            if ($request->input('range') === 'high') {
-                $query->has('studentGrades', '>=', 20);
-            } elseif ($request->input('range') === 'low') {
-                $query->has('studentGrades', '<', 20);
-            }
+        // 5. Course Filter
+        if ($request->filled('course')) {
+            $courseCode = $request->input('course');
+            $query->whereHas('course', fn ($cq) => $cq->where('course_code', $courseCode));
         }
-
         // 6. Dynamic Sorting
         $sort = $request->input('sort', 'record_code');
         $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
@@ -128,12 +124,14 @@ class CourseRecordController extends Controller
 
         $classOptions = ClassGroup::pluck('class_code')->unique()->sort()->values();
         $lecturerOptions = Lecturer::pluck('lecturer_code')->unique()->sort()->values();
+        $courseOptions = Course::orderBy('course_code')->get(['course_code', 'course_name']);
 
         return view('course-records.index', compact(
             'courseRecords',
             'periodOptions',
             'classOptions',
-            'lecturerOptions'
+            'lecturerOptions',
+            'courseOptions'
         ));
     }
 
