@@ -78,7 +78,7 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::prefix('input-data/{tab}/import')->name('input-data.import.')->controller(InputDataImportController::class)
-        ->whereIn('tab', InputDataController::TABS)->group(function () {
+        ->whereIn('tab', InputDataController::IMPORT_TABS)->group(function () {
             Route::get('/template', 'template')->name('template');
             Route::post('/preview', 'preview')->name('preview');
             Route::post('/commit', 'commit')->name('commit');

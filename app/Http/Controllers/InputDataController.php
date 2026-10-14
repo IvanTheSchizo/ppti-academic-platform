@@ -17,7 +17,10 @@ use Illuminate\Validation\Rule;
 
 class InputDataController extends Controller
 {
-    public const TABS = ['student', 'lecturer', 'course', 'class', 'course-record', 'grades'];
+    public const TABS = ['batch', 'period', 'student', 'lecturer', 'course', 'class', 'course-record', 'grades'];
+
+    /** Tabs with CSV import support. Batch and period are entered through their forms. */
+    public const IMPORT_TABS = ['student', 'lecturer', 'course', 'class', 'course-record', 'grades'];
 
     public function index()
     {
@@ -27,6 +30,16 @@ class InputDataController extends Controller
     public function show(string $tab)
     {
         $data = match ($tab) {
+            'batch' => [
+                'batchesList' => Batch::withCount('classes')
+                    ->orderBy('batch_name')
+                    ->get(),
+            ],
+            'period' => [
+                'periodsList' => Period::withCount('courseRecords')
+                    ->orderByDesc('start_date')
+                    ->get(),
+            ],
             'student' => [
                 'batches' => $this->batches(),
                 'classGroups' => ClassGroup::orderBy('class_code')->get(),
@@ -53,6 +66,8 @@ class InputDataController extends Controller
     public function store(Request $request, string $tab)
     {
         $message = match ($tab) {
+            'batch' => $this->storeBatch($request),
+            'period' => $this->storePeriod($request),
             'student' => $this->storeStudent($request),
             'lecturer' => $this->storeLecturer($request),
             'course' => $this->storeCourse($request),
@@ -103,6 +118,35 @@ class InputDataController extends Controller
                 ->map(fn ($grade) => $this->studentRow($grade->student, $grade->letter_grade))
                 ->values()
         );
+    }
+
+    private function storeBatch(Request $request): string
+    {
+        $validated = $request->validate([
+            'batch_name' => ['required', 'string', 'max:255', 'unique:batches,batch_name'],
+        ], [
+            'batch_name.unique' => 'That batch already exists.',
+        ]);
+
+        Batch::create($validated);
+
+        return 'Batch added successfully.';
+    }
+
+    private function storePeriod(Request $request): string
+    {
+        $validated = $request->validate([
+            'period_name' => ['required', 'string', 'max:255', 'unique:periods,period_name'],
+            'start_date' => ['required', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+        ], [
+            'period_name.unique' => 'That period name already exists.',
+            'end_date.after_or_equal' => 'The end date must be the same as or later than the start date.',
+        ]);
+
+        Period::create($validated);
+
+        return 'Period added successfully.';
     }
 
     private function storeStudent(Request $request): string

@@ -25,6 +25,11 @@
                 (* required).
                 <a href="{{ route('input-data.import.template', $tab) }}" class="text-link hover:underline">Download template</a>
             </p>
+            @if ($tab === 'student')
+                <p class="text-body text-muted">For each student, include both <strong>batch</strong> and <strong>class_code</strong>. Missing batches and classes will be created automatically when you confirm the import; existing ones will be reused.</p>
+            @elseif ($tab === 'class')
+                <p class="text-body text-muted">Missing batches will be created automatically when you confirm the import. Existing batches will be reused.</p>
+            @endif
         </div>
 
         {{-- Step 2: review the parsed rows --}}

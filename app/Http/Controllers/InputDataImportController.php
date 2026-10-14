@@ -43,16 +43,23 @@ class InputDataImportController extends Controller
         $seen = [];
         $rows = [];
         $valid = 0;
+        $plannedActions = [];
 
         foreach ($parsed['rows'] as $row) {
-            [, $errors] = $this->importer->process($tab, $row, $seen);
+            [$data, $errors] = $this->importer->process($tab, $row, $seen);
             $valid += $errors === [] ? 1 : 0;
+            $rowNotices = $errors === [] ? ($data['_notices'] ?? []) : [];
+
+            foreach ($rowNotices as $notice) {
+                $plannedActions[$notice] = true;
+            }
 
             if (count($rows) < self::PREVIEW_LIMIT) {
                 $rows[] = [
                     'line' => $row['_line'],
                     'cells' => array_map(fn ($column) => $row[$column], $columns),
                     'errors' => $errors,
+                    'notices' => $rowNotices,
                 ];
             }
         }
@@ -64,6 +71,7 @@ class InputDataImportController extends Controller
             'total' => count($parsed['rows']),
             'valid' => $valid,
             'invalid' => count($parsed['rows']) - $valid,
+            'plannedActions' => array_keys($plannedActions),
             'notes' => $parsed['errors'],
         ]);
     }

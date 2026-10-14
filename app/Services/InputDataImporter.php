@@ -26,7 +26,7 @@ class InputDataImporter
 
     /** tab => column => required? */
     public const COLUMNS = [
-        'student' => ['nim' => true, 'name' => true, 'class_code' => true, 'batch' => false, 'status' => false, 'gender' => false, 'email' => false, 'phone_number' => false, 'date_of_birth' => false],
+        'student' => ['nim' => true, 'name' => true, 'class_code' => true, 'batch' => true, 'status' => false, 'gender' => false, 'email' => false, 'phone_number' => false, 'date_of_birth' => false],
         'lecturer' => ['lecturer_code' => true, 'name' => true, 'jja' => false, 'latest_education' => false, 'status' => false, 'gender' => false, 'email_binus_edu' => false, 'email_binus_ac_id' => false, 'phone_number' => false],
         'course' => ['course_code' => true, 'course_name' => true, 'sks' => true],
         'class' => ['batch' => true, 'class_code' => true],
@@ -139,10 +139,10 @@ class InputDataImporter
     public function create(string $tab, array $data): void
     {
         match ($tab) {
-            'student' => Student::create($data + ['cumulative_gpa' => 0]),
+            'student' => $this->createStudent($data),
             'lecturer' => Lecturer::create($data),
             'course' => Course::create($data),
-            'class' => ClassGroup::create($data),
+            'class' => $this->createClassGroup($data),
             'course-record' => $this->createCourseRecord($data),
             'grades' => $this->createGrade($data),
         };
@@ -151,8 +151,18 @@ class InputDataImporter
     private function student(array $row): array
     {
         $errors = [];
-        $classId = $this->classId($row['class_code'], $row['batch'], $errors);
+        $notices = [];
+        $classId = $this->studentClassTarget($row['class_code'], $row['batch'], $errors, $notices);
         $dob = $this->date($row['date_of_birth'], $errors);
+
+        $dependencyValidator = Validator::make([
+            'batch' => $row['batch'],
+            'class_code' => $row['class_code'],
+        ], [
+            'batch' => 'required|string|max:255',
+            'class_code' => 'required|string|max:20',
+        ]);
+        $errors = array_merge($errors, $dependencyValidator->errors()->all());
 
         $validator = Validator::make([
             'nim' => $row['nim'], 'name' => $row['name'], 'status' => $row['status'] ?: 'Active',
@@ -168,7 +178,24 @@ class InputDataImporter
 
         $errors = array_merge($errors, $validator->errors()->all());
 
-        return [$errors ? null : $validator->validated() + ['class_id' => $classId, 'date_of_birth' => $dob], $errors];
+        if ($errors !== []) {
+            return [null, $errors];
+        }
+
+        $data = $validator->validated() + ['class_id' => $classId, 'date_of_birth' => $dob];
+
+        // If the class does not exist yet, keep its natural keys in the preview payload.
+        // They are resolved to actual records only when the user confirms the import.
+        if ($classId === null) {
+            $data['_batch_name'] = $row['batch'];
+            $data['_class_code'] = $row['class_code'];
+        }
+
+        if ($notices !== []) {
+            $data['_notices'] = $notices;
+        }
+
+        return [$data, []];
     }
 
     private function lecturer(array $row): array
@@ -204,17 +231,106 @@ class InputDataImporter
 
     private function classGroup(array $row): array
     {
-        $batch = Batch::where('batch_name', $row['batch'])->first();
+        $validator = Validator::make([
+            'batch' => $row['batch'],
+            'class_code' => $row['class_code'],
+        ], [
+            'batch' => 'required|string|max:255',
+            'class_code' => 'required|string|max:20',
+        ]);
 
-        if (! $batch) {
-            return [null, ["Batch \"{$row['batch']}\" does not exist."]];
+        if ($validator->fails()) {
+            return [null, $validator->errors()->all()];
         }
 
-        $validator = Validator::make(['class_code' => $row['class_code']], [
-            'class_code' => ['required', 'string', 'max:20', Rule::unique('class_groups', 'class_code')->where('batch_id', $batch->id)],
-        ], ['class_code.unique' => 'This class already exists in that batch.']);
+        $batch = Batch::where('batch_name', $row['batch'])->first();
 
-        return [$validator->fails() ? null : $validator->validated() + ['batch_id' => $batch->id], $validator->errors()->all()];
+        if ($batch) {
+            $exists = ClassGroup::where('batch_id', $batch->id)
+                ->where('class_code', $row['class_code'])
+                ->exists();
+
+            if ($exists) {
+                return [null, ['This class already exists in that batch.']];
+            }
+
+            return [[
+                'batch_id' => $batch->id,
+                'class_code' => $row['class_code'],
+            ], []];
+        }
+
+        return [[
+            '_batch_name' => $row['batch'],
+            'class_code' => $row['class_code'],
+            '_notices' => ["Batch \"{$row['batch']}\" will be created automatically."],
+        ], []];
+    }
+
+    /** Resolve an existing student class, or mark the requested batch/class for automatic creation. */
+    private function studentClassTarget(string $classCode, string $batchName, array &$errors, array &$notices): ?int
+    {
+        if ($classCode === '' || $batchName === '') {
+            $errors[] = 'Both batch and class_code are required for student CSV import.';
+
+            return null;
+        }
+
+        $batch = Batch::where('batch_name', $batchName)->first();
+
+        if (! $batch) {
+            $notices[] = "Batch \"{$batchName}\" will be created automatically.";
+            $notices[] = "Class \"{$classCode}\" will be created under batch \"{$batchName}\".";
+
+            return null;
+        }
+
+        $class = ClassGroup::where('batch_id', $batch->id)
+            ->where('class_code', $classCode)
+            ->first();
+
+        if ($class) {
+            return $class->id;
+        }
+
+        $notices[] = "Class \"{$classCode}\" will be created under batch \"{$batchName}\".";
+
+        return null;
+    }
+
+    private function createStudent(array $data): void
+    {
+        DB::transaction(function () use ($data) {
+            if (empty($data['class_id']) && ! empty($data['_batch_name']) && ! empty($data['_class_code'])) {
+                $batch = Batch::firstOrCreate(['batch_name' => $data['_batch_name']]);
+                $class = ClassGroup::firstOrCreate([
+                    'batch_id' => $batch->id,
+                    'class_code' => $data['_class_code'],
+                ]);
+                $data['class_id'] = $class->id;
+            }
+
+            unset($data['_batch_name'], $data['_class_code'], $data['_notices']);
+            $data['cumulative_gpa'] = 0;
+
+            Student::create($data);
+        });
+    }
+
+    private function createClassGroup(array $data): void
+    {
+        DB::transaction(function () use ($data) {
+            if (empty($data['batch_id']) && ! empty($data['_batch_name'])) {
+                $batch = Batch::firstOrCreate(['batch_name' => $data['_batch_name']]);
+                $data['batch_id'] = $batch->id;
+            }
+
+            unset($data['_batch_name'], $data['_notices']);
+            ClassGroup::firstOrCreate([
+                'batch_id' => $data['batch_id'],
+                'class_code' => $data['class_code'],
+            ]);
+        });
     }
 
     private function courseRecord(array $row): array

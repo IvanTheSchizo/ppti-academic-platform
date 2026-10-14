@@ -512,17 +512,23 @@ const initCsvImport = (root) => {
 
             tr.append(cell('td', row.line, 'px-3 py-2 text-muted'));
             row.cells.forEach((value) => tr.append(cell('td', value || '-', 'px-3 py-2 whitespace-nowrap')));
-            tr.append(row.errors.length
+            const status = row.errors.length
                 ? cell('td', row.errors.join(' '), 'px-3 py-2 text-danger')
-                : cell('td', 'Ready', 'px-3 py-2 text-success whitespace-nowrap'));
+                : cell('td', row.notices?.length ? `Ready — ${row.notices.join(' ')}` : 'Ready', 'px-3 py-2 text-success min-w-64');
+            tr.append(status);
 
             return tr;
         }));
 
         const shown = data.rows.length < data.total ? ` Showing the first ${data.rows.length}.` : '';
 
+        const planned = data.plannedActions?.length ?? 0;
+        const setupSummary = planned
+            ? ` Missing batch/class setup: ${planned} new batch or class record(s) will be created automatically if you confirm; see row statuses for details.`
+            : '';
+
         root.querySelector('[data-import-summary]').textContent =
-            `${data.total} row${data.total === 1 ? '' : 's'} read: ${data.valid} ready to import, ${data.invalid} with errors (these are skipped).${shown} ${data.notes.join(' ')}`;
+            `${data.total} row${data.total === 1 ? '' : 's'} read: ${data.valid} ready to import, ${data.invalid} with errors (these are skipped).${shown}${setupSummary} ${data.notes.join(' ')}`;
 
         footer('commit').textContent = `Import ${data.valid} row${data.valid === 1 ? '' : 's'}`;
         setBusy(footer('commit'), data.valid === 0);
