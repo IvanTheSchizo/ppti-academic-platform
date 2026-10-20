@@ -5,12 +5,13 @@
 @php
     // tab => [label, icon, card title, submit label]
     $tabs = [
+        // Keep tabs in dependency/workflow order; route keys and form behavior stay unchanged.
         'batch' => ['Batch', 'work', 'New Batch', 'Add Batch'],
-        'period' => ['Period', 'date_range', 'New Period', 'Add Period'],
+        'class' => ['Class', 'groups', 'New Class', 'Add Class'],
         'student' => ['Student', 'person', 'New Student', 'Add Student'],
+        'period' => ['Period', 'date_range', 'New Period', 'Add Period'],
         'lecturer' => ['Lecturer', 'badge', 'New Lecturer', 'Add Lecturer'],
         'course' => ['Course', 'menu_book', 'New Course', 'Add Course'],
-        'class' => ['Class', 'groups', 'New Class', 'Add Class'],
         'course-record' => ['Course Record', 'school', 'New Course Record', 'Add Course Record'],
         'grades' => ['Grades', 'assignment', 'New Grades', 'Save Grades'],
     ];

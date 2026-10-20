@@ -11,6 +11,7 @@ use App\Models\LecturerPerformance;
 use App\Models\Period;
 use App\Models\Student;
 use App\Models\StudentGrade;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -63,7 +64,7 @@ class InputDataController extends Controller
         return view('input-data.show', ['tab' => $tab] + $data);
     }
 
-    public function store(Request $request, string $tab)
+    public function store(Request $request, string $tab, AuditLogger $auditLogger)
     {
         $message = match ($tab) {
             'batch' => $this->storeBatch($request),
@@ -149,7 +150,7 @@ class InputDataController extends Controller
         return 'Period added successfully.';
     }
 
-    private function storeStudent(Request $request): string
+    private function storeStudent(Request $request, AuditLogger $auditLogger): string
     {
         $validated = $request->validate([
             'nim'                   => 'required|string|max:255|unique:students,nim',
@@ -174,8 +175,9 @@ class InputDataController extends Controller
         unset($validated['semesters']);
         $validated['cumulative_gpa'] = $semesters->isEmpty() ? 0 : round($semesters->avg('gpa'), 2);
 
-        DB::transaction(function () use ($validated, $semesters) {
+        DB::transaction(function () use ($validated, $semesters, $auditLogger) {
             $student = Student::create($validated);
+            $auditLogger->record('CREATE', 'Student', $student->id, null, $auditLogger->snapshot($student, ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa']));
 
             $student->semesterGpas()->createMany(
                 $semesters->map(fn ($row) => ['period_id' => $row['period_id'], 'gpa' => $row['gpa']])->all()
@@ -298,16 +300,24 @@ class InputDataController extends Controller
             abort(422, 'Unknown student in the list.');
         }
 
-        DB::transaction(function () use ($validated, $studentIds) {
+        DB::transaction(function () use ($validated, $studentIds, $auditLogger) {
             $recordId = $validated['course_record_id'];
 
-            StudentGrade::where('course_record_id', $recordId)->whereNotIn('student_id', $studentIds)->delete();
+            $removedGrades = StudentGrade::where('course_record_id', $recordId)->whereNotIn('student_id', $studentIds)->get();
+            foreach ($removedGrades as $removed) {
+                $auditLogger->record('DELETE', 'StudentGrade', $removed->id, $auditLogger->snapshot($removed, ['student_id', 'course_record_id', 'letter_grade', 'numeric_grade']), null);
+                $removed->delete();
+            }
 
             foreach ($validated['grades'] as $studentId => $letter) {
-                StudentGrade::updateOrCreate(
-                    ['student_id' => $studentId, 'course_record_id' => $recordId],
-                    ['letter_grade' => $letter, 'numeric_grade' => $letter ? StudentGrade::GRADE_POINTS[$letter] : null],
-                );
+                $grade = StudentGrade::firstOrNew(['student_id' => $studentId, 'course_record_id' => $recordId]);
+                $wasExisting = $grade->exists;
+                $old = $wasExisting ? $auditLogger->snapshot($grade, ['student_id', 'course_record_id', 'letter_grade', 'numeric_grade']) : null;
+                $grade->fill(['letter_grade' => $letter, 'numeric_grade' => $letter ? StudentGrade::GRADE_POINTS[$letter] : null]);
+                if (! $wasExisting || $grade->isDirty()) {
+                    $grade->save();
+                    $auditLogger->record($wasExisting ? 'UPDATE' : 'CREATE', 'StudentGrade', $grade->id, $old, $auditLogger->snapshot($grade, ['student_id', 'course_record_id', 'letter_grade', 'numeric_grade']));
+                }
             }
         });
 

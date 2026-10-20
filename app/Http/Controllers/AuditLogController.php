@@ -63,8 +63,17 @@ class AuditLogController extends Controller
         $perPage = max((int) $request->input('per_page', 10), 1);
         $auditLogs = $query->paginate($perPage)->withQueryString();
 
-        // 6. Presentation Transformation matching table.blade.php
+        // 6. Presentation Transformation matching table.blade.php.
+        // For updates, display only fields whose values actually changed.
+        // For creates/deletes, retain the available full snapshot.
         $auditLogs->getCollection()->transform(function ($log) {
+            $oldValue = $log->old_value;
+            $newValue = $log->new_value;
+
+            if (strtoupper((string) $log->action_type) === 'UPDATE') {
+                [$oldValue, $newValue] = $this->changedValues($log->old_value, $log->new_value);
+            }
+
             return (object) [
                 'id'            => $log->id,
                 'timestamp'     => $log->created_at ? $log->created_at->format('Y-m-d H:i') : '-',
@@ -72,8 +81,8 @@ class AuditLogController extends Controller
                 'action'        => $log->action_type,
                 'target_entity' => $log->target_entity,
                 'target_id'     => $log->target_id,
-                'old_value'     => $this->valueLines($log->old_value),
-                'new_value'     => $this->valueLines($log->new_value),
+                'old_value'     => $this->valueLines($oldValue),
+                'new_value'     => $this->valueLines($newValue),
             ];
         });
 
@@ -130,6 +139,105 @@ class AuditLogController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+
+    /**
+     * Return JSON snapshots containing only changed top-level attributes.
+     * JSON encoding preserves the existing table's valueLines presentation.
+     * Non-JSON legacy values fall back to the original snapshots.
+     *
+     * @return array{0: ?string, 1: ?string}
+     */
+    private function changedValues(?string $oldValue, ?string $newValue): array
+    {
+        $old = $this->decodeAuditSnapshot($oldValue);
+        $new = $this->decodeAuditSnapshot($newValue);
+
+        if (! is_array($old) || ! is_array($new)) {
+            return [$oldValue, $newValue];
+        }
+
+        $changedOld = [];
+        $changedNew = [];
+        $keys = array_unique(array_merge(array_keys($old), array_keys($new)));
+
+        foreach ($keys as $key) {
+            $oldHasKey = array_key_exists($key, $old);
+            $newHasKey = array_key_exists($key, $new);
+            $oldItem = $old[$key] ?? null;
+            $newItem = $new[$key] ?? null;
+
+            if ($oldHasKey && $newHasKey && is_array($oldItem) && is_array($newItem)) {
+                $this->collectChangedFields((string) $key, $oldItem, $newItem, $changedOld, $changedNew);
+                continue;
+            }
+
+            if ($oldHasKey !== $newHasKey || ($oldHasKey && $newHasKey && $oldItem !== $newItem)) {
+                if ($oldHasKey) {
+                    $changedOld[$key] = $oldItem;
+                }
+                if ($newHasKey) {
+                    $changedNew[$key] = $newItem;
+                }
+            }
+        }
+
+        return [
+            json_encode($changedOld, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}',
+            json_encode($changedNew, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}',
+        ];
+    }
+
+    /** Parse both JSON snapshots and the legacy "student: {...}\nsemester_gpas: [...]" format. */
+    private function decodeAuditSnapshot(?string $value): ?array
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        $decoded = json_decode($value, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        $result = [];
+        foreach (preg_split('/\r?\n/', $value) as $line) {
+            if (! preg_match('/^\s*([a-zA-Z0-9_ -]+):\s*(.*?)\s*$/', $line, $matches)) {
+                continue;
+            }
+
+            $key = trim($matches[1]);
+            $raw = $matches[2];
+            $item = json_decode($raw, true);
+            $result[$key] = json_last_error() === JSON_ERROR_NONE ? $item : $raw;
+        }
+
+        return $result !== [] ? $result : null;
+    }
+
+    /** Flatten nested snapshots so the table shows paths such as student.status only. */
+    private function collectChangedFields(string $prefix, array $old, array $new, array &$changedOld, array &$changedNew): void
+    {
+        $keys = array_unique(array_merge(array_keys($old), array_keys($new)));
+        foreach ($keys as $key) {
+            $oldHasKey = array_key_exists($key, $old);
+            $newHasKey = array_key_exists($key, $new);
+            $path = $prefix . '.' . $key;
+            $oldItem = $old[$key] ?? null;
+            $newItem = $new[$key] ?? null;
+
+            if ($oldHasKey && $newHasKey && is_array($oldItem) && is_array($newItem)) {
+                $this->collectChangedFields($path, $oldItem, $newItem, $changedOld, $changedNew);
+            } elseif ($oldHasKey !== $newHasKey || ($oldHasKey && $newHasKey && $oldItem !== $newItem)) {
+                if ($oldHasKey) {
+                    $changedOld[$path] = $oldItem;
+                }
+                if ($newHasKey) {
+                    $changedNew[$path] = $newItem;
+                }
+            }
+        }
     }
 
     /**

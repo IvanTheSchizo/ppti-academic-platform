@@ -6,6 +6,7 @@ use App\Models\Batch;
 use App\Models\ClassGroup;
 use App\Models\Period;
 use App\Models\Student;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -191,7 +192,7 @@ class StudentController extends Controller
         return view('students.profile', compact('student', 'activeTab', 'grades', 'semesterGpa', 'classGroups', 'periods'));
     }
 
-    public function update(Request $request, Student $student)
+    public function update(Request $request, Student $student, AuditLogger $auditLogger)
     {
         $validated = $request->validate([
             'nim'                    => 'required|string|max:255|unique:students,nim,' . $student->id,
@@ -218,13 +219,21 @@ class StudentController extends Controller
         // Cumulative GPA is calculated from the semester GPAs.
         $validated['cumulative_gpa'] = $semesters->isEmpty() ? 0 : round($semesters->avg('gpa'), 2);
 
-        DB::transaction(function () use ($student, $validated, $semesters) {
+        DB::transaction(function () use ($student, $validated, $semesters, $auditLogger) {
+            $fields = ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa'];
+            $oldStudent = $auditLogger->snapshot($student, $fields);
+            $oldSemesters = $student->semesterGpas()->get(['period_id', 'gpa'])->map(fn ($row) => ['period_id' => $row->period_id, 'gpa' => $row->gpa])->all();
             $student->update($validated);
 
             $student->semesterGpas()->delete();
             $student->semesterGpas()->createMany(
                 $semesters->map(fn ($row) => ['period_id' => $row['period_id'], 'gpa' => $row['gpa']])->all()
             );
+            $student->refresh();
+            $newStudent = $auditLogger->snapshot($student, $fields);
+            if ($oldStudent !== $newStudent || $oldSemesters !== $semesters->map(fn ($row) => ['period_id' => $row['period_id'], 'gpa' => $row['gpa']])->all()) {
+                $auditLogger->record('UPDATE', 'Student', $student->id, ['student' => $oldStudent, 'semester_gpas' => $oldSemesters], ['student' => $newStudent, 'semester_gpas' => $semesters->map(fn ($row) => ['period_id' => $row['period_id'], 'gpa' => $row['gpa']])->all()]);
+            }
         });
 
         return redirect()->route('students.profile', $student->id)->with('success', 'Student updated successfully.');
@@ -308,9 +317,14 @@ class StudentController extends Controller
             ->get(['periods.period_name as label', 'student_semester_gpas.gpa as value'])
             ->map(fn ($row) => ['label' => $row->label, 'value' => (float) $row->value]);
     }
-    public function destroy(Student $student)
+    public function destroy(Student $student, AuditLogger $auditLogger)
     {
-        $student->delete();
+        DB::transaction(function () use ($student, $auditLogger) {
+            $fields = ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa'];
+            $snapshot = $auditLogger->snapshot($student, $fields);
+            $auditLogger->record('DELETE', 'Student', $student->id, $snapshot, null);
+            $student->delete();
+        });
         return response()->json(null, 204);
     }
 }
