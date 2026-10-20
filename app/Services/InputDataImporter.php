@@ -313,7 +313,8 @@ class InputDataImporter
             unset($data['_batch_name'], $data['_class_code'], $data['_notices']);
             $data['cumulative_gpa'] = 0;
 
-            Student::create($data);
+            $student = Student::create($data);
+            app(AuditLogger::class)->record('CREATE', 'Student', $student->id, null, app(AuditLogger::class)->snapshot($student, ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa']));
         });
     }
 
@@ -397,11 +398,15 @@ class InputDataImporter
     private function createGrade(array $data): void
     {
         $letter = $data['letter_grade'];
-
-        StudentGrade::updateOrCreate(
-            ['student_id' => $data['student_id'], 'course_record_id' => $data['course_record_id']],
-            ['letter_grade' => $letter, 'numeric_grade' => $letter ? StudentGrade::GRADE_POINTS[$letter] : null],
-        );
+        $audit = app(AuditLogger::class);
+        $grade = StudentGrade::firstOrNew(['student_id' => $data['student_id'], 'course_record_id' => $data['course_record_id']]);
+        $wasExisting = $grade->exists;
+        $old = $wasExisting ? $audit->snapshot($grade, ['student_id', 'course_record_id', 'letter_grade', 'numeric_grade']) : null;
+        $grade->fill(['letter_grade' => $letter, 'numeric_grade' => $letter ? StudentGrade::GRADE_POINTS[$letter] : null]);
+        if (! $wasExisting || $grade->isDirty()) {
+            $grade->save();
+            $audit->record($wasExisting ? 'UPDATE' : 'CREATE', 'StudentGrade', $grade->id, $old, $audit->snapshot($grade, ['student_id', 'course_record_id', 'letter_grade', 'numeric_grade']));
+        }
     }
 
     private function classId(string $classCode, string $batchName, array &$errors): ?int
