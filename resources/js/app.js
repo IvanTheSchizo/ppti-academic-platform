@@ -276,13 +276,19 @@ const initStudentPicker = (root) => {
         }
 
         const tr = document.createElement('tr');
-
         tr.dataset.studentId = student.id;
+
+        const cbTd = document.createElement('td');
+        cbTd.className = 'px-2 py-2';
+        
+        const inputName = withGrade ? '' : 'name="students[]"';
+        cbTd.innerHTML = `<input type="checkbox" ${inputName} value="${student.id}" checked data-picker-checkbox class="rounded border-border text-primary focus:ring-primary">`;
+        tr.append(cbTd);
+
         [student.nim, student.name, student.batch, student.class].forEach((text) => tr.append(cell(text)));
 
         if (withGrade) {
             const select = document.createElement('select');
-
             select.name = `grades[${student.id}]`;
             select.setAttribute('aria-label', `Grade for ${student.name}`);
             select.className = 'h-8 rounded-ui border border-border bg-surface px-2 text-body text-text focus:border-primary focus:outline-2 focus:outline-primary/30';
@@ -290,28 +296,28 @@ const initStudentPicker = (root) => {
             gradeOptions.forEach((grade) => select.add(new Option(grade, grade, false, grade === student.grade)));
 
             const td = document.createElement('td');
-
             td.className = 'px-2 py-2';
             td.append(select);
             tr.append(td);
-        } else {
-            const hidden = document.createElement('input');
-
-            hidden.type = 'hidden';
-            hidden.name = 'students[]';
-            hidden.value = student.id;
-            tr.firstElementChild.append(hidden);
         }
-
-        const remove = document.createElement('td');
-
-        remove.className = 'px-2 py-2 text-right';
-        remove.append(root.querySelector('template[data-remove-button]').content.cloneNode(true));
-        tr.append(remove);
 
         body.append(tr);
         refreshEmpty();
     };
+
+    root.addEventListener('change', (event) => {
+        if (event.target.matches('[data-picker-select-all]')) {
+            const isChecked = event.target.checked;
+            root.querySelectorAll('[data-picker-checkbox]').forEach(cb => cb.checked = isChecked);
+        }
+
+        if (event.target.matches('[data-picker-checkbox]')) {
+            const selectAllCb = root.querySelector('[data-picker-select-all]');
+            if (selectAllCb) {
+                selectAllCb.checked = [...root.querySelectorAll('[data-picker-checkbox]')].every(cb => cb.checked);
+            }
+        }
+    });
 
     const hideResults = () => {
         results.hidden = true;

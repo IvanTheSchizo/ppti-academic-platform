@@ -150,9 +150,15 @@ class CourseRecordController extends Controller
             ->paginate(max((int) $request->input('per_page', 10), 1))
             ->withQueryString();
 
+        // NEW: Fetch all students and currently enrolled IDs for the popup modal
+        $allStudents = Student::with('classGroup.batch')->orderBy('nim')->get();
+        $enrolledStudentIds = $courseRecord->studentGrades()->pluck('student_id')->toArray();
+
         return view('course-records.show', [
             'record' => $courseRecord,
             'students' => $students,
+            'allStudents' => $allStudents,
+            'enrolledStudentIds' => $enrolledStudentIds,
             'courses' => Course::orderBy('course_code')->get(['id', 'course_code', 'course_name']),
             'periods' => Period::orderBy('start_date')->get(['id', 'period_name']),
             'classGroups' => ClassGroup::orderBy('class_code')->get(['id', 'class_code']),
@@ -198,18 +204,25 @@ class CourseRecordController extends Controller
     }
 
     /**
-     * Enrol a student in the course record (no grade yet).
+     * Enroll multiple students in the course record via modal form.
      */
     public function addStudent(Request $request, CourseRecord $courseRecord)
     {
-        $validated = $request->validate(['student_id' => 'required|exists:students,id']);
+        $validated = $request->validate([
+            'students'   => 'required|array',
+            'students.*' => 'exists:students,id'
+        ]);
 
-        $grade = $courseRecord->studentGrades()->firstOrCreate(['student_id' => $validated['student_id']]);
-        $message = $grade->wasRecentlyCreated ? 'Student added to the course record.' : 'That student is already in this course record.';
+        $addedCount = 0;
+        foreach ($validated['students'] as $studentId) {
+            $grade = $courseRecord->studentGrades()->firstOrCreate(['student_id' => $studentId]);
+            if ($grade->wasRecentlyCreated) {
+                $addedCount++;
+            }
+        }
 
-        session()->flash('success', $message);
-
-        return response()->json(['message' => $message]);
+        return redirect()->route('course-records.show', $courseRecord->id)
+            ->with('success', "{$addedCount} student(s) added to the course record.");
     }
 
     /**
@@ -221,6 +234,25 @@ class CourseRecordController extends Controller
 
         return redirect()->route('course-records.show', $courseRecord->id)->with('success', 'Student removed from the course record.');
     }
+
+    /**
+     * Remove multiple students from the course record via modal form.
+     */
+    public function removeStudents(Request $request, CourseRecord $courseRecord)
+    {
+        $validated = $request->validate([
+            'students'   => 'required|array',
+            'students.*' => 'exists:students,id'
+        ]);
+
+        $deletedCount = $courseRecord->studentGrades()
+            ->whereIn('student_id', $validated['students'])
+            ->delete();
+
+        return redirect()->route('course-records.show', $courseRecord->id)
+            ->with('success', "{$deletedCount} student(s) removed from the course record.");
+    }
+        
     /**
      * Download one course record (details plus enrolled students) as CSV.
      */

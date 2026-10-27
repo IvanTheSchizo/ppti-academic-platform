@@ -48,56 +48,46 @@
             </x-ui.detail-list>
         </x-ui.card>
 
-        {{-- Students: the search enrols a student on click ("Add Students" jumps to it); "Edit" shows a remove icon per row. --}}
+        {{-- Students: the search enrolls a student on click ("Add Students" jumps to it); "Edit" shows a remove icon per row. --}}
         <x-ui.card>
             <div class="mb-4 flex flex-wrap items-center justify-between gap-4">
                 <h2 class="text-section font-semibold text-text">Students</h2>
 
                 <div class="flex items-center gap-3">
-                    <x-ui.button type="button" variant="secondary" data-add-students-toggle>
+                    <x-ui.button type="button" variant="secondary" data-modal-open="#add-student-modal">
                         <x-ui.icon name="plus" /> Add Students
                     </x-ui.button>
-                    <x-ui.button type="button" variant="secondary" data-edit-toggle="#record-students-table" aria-pressed="false">
-                        <x-ui.icon name="pencil" /> <span data-edit-label>Edit</span>
+                    <x-ui.button type="button" variant="secondary" class="text-danger hover:bg-danger/10 hover:text-danger-hover" data-modal-open="#remove-student-modal">
+                        <x-ui.icon name="delete" /> Remove Students
                     </x-ui.button>
                 </div>
             </div>
 
-            <div id="add-students-panel" class="relative mb-4"
+            <!-- <div id="add-students-panel" class="relative mb-4"
                  data-record-add
                  data-search-url="{{ route('input-data.students.search') }}"
                  data-add-url="{{ route('course-records.students.store', $record->id) }}"
                  data-exclude-record="{{ $record->id }}">
                 <x-form.search-input type="search" placeholder="Search student by name or NIM to add" aria-label="Search student by name or NIM to add" autocomplete="off" :filled="true" data-record-add-search />
                 <ul data-record-add-results hidden class="absolute inset-x-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-ui border border-border bg-surface py-1 text-body"></ul>
-            </div>
+            </div> -->
 
             <x-ui.table :headings="[
                 ['label' => 'NIM', 'sortable' => false],
                 ['label' => 'Name', 'sortable' => false],
                 ['label' => 'Batch', 'sortable' => false],
                 ['label' => 'Class', 'sortable' => false],
-                ['label' => 'Remove', 'sortable' => false],
-            ]" id="record-students-table" data-edit-mode="off"
-                class="[&[data-edit-mode=off]_th:last-child]:hidden [&[data-edit-mode=off]_td[data-actions]]:hidden">
+            ]" id="record-students-table">
                 @forelse ($students as $student)
                     <tr data-row-href="{{ route('students.profile', $student->id) }}" class="cursor-pointer">
                         <td>{{ $student->nim }}</td>
                         <td>{{ $student->name }}</td>
                         <td>{{ $student->classGroup?->batch?->batch_name ?? '-' }}</td>
                         <td>{{ $student->classGroup?->class_code ?? '-' }}</td>
-                        <td data-actions class="text-right">
-                            <button type="button" aria-label="Remove {{ $student->name }}"
-                                    data-remove-student="{{ route('course-records.students.destroy', [$record->id, $student->id]) }}"
-                                    data-modal-open="#remove-student-confirm"
-                                    class="grid size-8 place-items-center rounded-ui text-muted transition-colors hover:text-danger active:bg-border/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-                                <x-ui.icon name="delete" />
-                            </button>
-                        </td>
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="5">
+                        <td colspan="4">
                             <x-ui.empty-state title="No students yet" description="Use Add Students to enrol students in this course record." icon="search" />
                         </td>
                     </tr>
@@ -118,4 +108,6 @@
     <x-ui.confirm id="remove-student-confirm" title="Remove student?" message="This removes the student from the course record and deletes their grade for it." confirm-label="Remove" form="remove-student-form" variant="danger" />
 
     @include('course-records.partials.edit-modal')
+    @include('course-records.partials.add-student-modal')
+    @include('course-records.partials.remove-student-modal')
 @endsection

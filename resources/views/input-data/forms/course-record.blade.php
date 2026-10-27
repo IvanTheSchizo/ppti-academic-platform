@@ -18,7 +18,7 @@
     </x-form.field>
 
     <x-form.field name="class_id" label="Class" :required="true">
-        <x-form.select name="class_id">
+        <x-form.select name="class_id" id="class_id">
             <option value="">Select Class</option>
             @foreach ($classGroups as $classGroup)
                 <option value="{{ $classGroup->id }}" @selected((string) old('class_id') === (string) $classGroup->id)>{{ $classGroup->class_code }}</option>
@@ -42,5 +42,5 @@
 
 @include('input-data.partials.student-picker', [
     'initialStudents' => $initialStudents,
-    'classSelect' => '#class_id',
+    'classSelect'     => 'select[name=class_id]',
 ])

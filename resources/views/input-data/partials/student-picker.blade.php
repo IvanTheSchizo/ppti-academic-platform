@@ -37,10 +37,13 @@
         <ul data-picker-results hidden class="absolute inset-x-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-ui border border-border bg-surface py-1 text-body"></ul>
     </div>
 
-    <div class="mt-4 overflow-x-auto">
+<div class="mt-4 overflow-x-auto">
         <table class="w-full border-collapse text-left text-body">
             <thead>
-                <tr class="border-b border-border text-caption uppercase tracking-wide text-muted">
+                <tr class="border-b border-border text-caption uppercase tracking-wide text-muted bg-surface">
+                    <th class="w-10 px-2 py-2 font-normal">
+                        <input type="checkbox" data-picker-select-all checked class="rounded border-border text-primary focus:ring-primary">
+                    </th>
                     <th class="px-2 py-2 font-normal">NIM</th>
                     <th class="px-2 py-2 font-normal">Name</th>
                     <th class="px-2 py-2 font-normal">Batch</th>
@@ -48,19 +51,12 @@
                     @if ($withGrade)
                         <th class="px-2 py-2 font-normal">Grade</th>
                     @endif
-                    <th class="w-10 px-2 py-2"><span class="sr-only">Remove</span></th>
                 </tr>
             </thead>
-            <tbody data-picker-body class="[&>tr]:border-b [&>tr]:border-border"></tbody>
+            <tbody data-picker-body class="[&>tr]:border-b [&>tr]:border-border [&>tr]:transition-colors hover:[&>tr]:bg-page"></tbody>
         </table>
 
         <p data-picker-empty class="px-2 py-6 text-center text-muted">No students added yet.</p>
     </div>
-
-    <template data-remove-button>
-        <button type="button" data-picker-remove aria-label="Remove student"
-                class="grid size-8 place-items-center rounded-ui text-muted transition-colors hover:text-danger active:bg-border/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
-            <x-ui.icon name="delete" />
-        </button>
-    </template>
+</div>
 </div>

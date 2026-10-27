@@ -63,6 +63,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/course-records/{courseRecord}', [CourseRecordController::class, 'show'])->name('course-records.show');
     Route::put('/course-records/{courseRecord}', [CourseRecordController::class, 'update'])->name('course-records.update');
     Route::post('/course-records/{courseRecord}/students', [CourseRecordController::class, 'addStudent'])->name('course-records.students.store');
+    Route::delete('/course-records/{courseRecord}/students/bulk', [CourseRecordController::class, 'removeStudents'])->name('course-records.students.bulk-destroy');
     Route::delete('/course-records/{courseRecord}/students/{student}', [CourseRecordController::class, 'removeStudent'])->name('course-records.students.destroy');
     Route::get('/course-records/{courseRecord}/export', [CourseRecordController::class, 'exportRecord'])->name('course-records.show.export');
 
