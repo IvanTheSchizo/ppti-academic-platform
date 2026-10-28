@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\CourseRecord;
 use App\Models\Lecturer;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 
 class LecturerController extends Controller
@@ -127,7 +128,7 @@ class LecturerController extends Controller
     /**
      * Update the specified lecturer.
      */
-    public function update(Request $request, Lecturer $lecturer)
+    public function update(Request $request, Lecturer $lecturer, AuditLogger $auditLogger)
     {
         $validated = $request->validate([
             'lecturer_code'     => 'required|string|max:20|unique:lecturers,lecturer_code,' . $lecturer->id,
@@ -141,7 +142,20 @@ class LecturerController extends Controller
             'gender'            => 'nullable|in:Male,Female',
         ]);
 
+        // Capture the approved fields before and after the update so the audit log
+        // records only actual changes and never includes unrelated model attributes.
+        $fields = [
+            'lecturer_code', 'name', 'jja', 'latest_education', 'status',
+            'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number',
+        ];
+        $oldValues = $auditLogger->snapshot($lecturer, $fields);
         $lecturer->update($validated);
+        $lecturer->refresh();
+        $newValues = $auditLogger->snapshot($lecturer, $fields);
+
+        if ($oldValues !== $newValues) {
+            $auditLogger->record('UPDATE', 'Lecturer', $lecturer->id, $oldValues, $newValues);
+        }
 
         if ($request->wantsJson()) {
             return response()->json($lecturer);
