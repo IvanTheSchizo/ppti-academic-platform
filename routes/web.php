@@ -41,7 +41,7 @@ Route::middleware('auth')->group(function () {
     // ====================
     // Pages
     // ====================
-    
+
     Route::get('/password', [AuthController::class, 'editPassword'])->name('password.edit');
     Route::put('/password', [AuthController::class, 'updatePassword'])->name('password.update');
 
@@ -53,6 +53,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/lecturers/export', [LecturerController::class, 'export'])->name('lecturers.export');
     Route::get('/lecturers', [LecturerController::class, 'index'])->name('lecturers.index');
+    Route::get('/lecturers/{lecturer}/export', [LecturerController::class, 'exportProfile'])->name('lecturers.profile.export');
     Route::put('/lecturers/{lecturer}', [LecturerController::class, 'update'])->name('lecturers.update');
     Route::get('/lecturers/{lecturer}', [LecturerController::class, 'show'])->name('lecturers.profile');
 

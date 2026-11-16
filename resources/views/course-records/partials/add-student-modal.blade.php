@@ -15,7 +15,7 @@
                 <thead class="sticky top-0 z-10 bg-surface shadow-sm outline outline-1 outline-border">
                     <tr class="text-caption uppercase tracking-wide text-muted">
                         <th class="w-10 px-3 py-3 font-normal text-center">
-                            <input type="checkbox" id="modal-select-all" class="rounded border-border text-primary focus:ring-primary">
+                            <input type="checkbox" id="modal-select-all" class="size-4 shrink-0 cursor-pointer rounded border-border text-primary accent-navy focus:ring-primary">
                         </th>
                         <th class="px-3 py-3 font-normal">NIM</th>
                         <th class="px-3 py-3 font-normal">Name</th>
@@ -37,7 +37,7 @@
                             <td class="px-3 py-3 text-center">
                                 {{-- CHANGED: name="student_ids[]" to name="students[]" to match backend --}}
                                 <input type="checkbox" name="students[]" value="{{ $student->id }}" 
-                                    class="student-cb rounded border-border text-primary focus:ring-primary"
+                                    class="student-cb size-4 shrink-0 cursor-pointer rounded border-border text-primary accent-navy focus:ring-primary disabled:cursor-not-allowed"
                                     @disabled($isEnrolled)>
                             </td>
                             <td class="px-3 py-3 font-medium text-text">{{ $student->nim }}</td>

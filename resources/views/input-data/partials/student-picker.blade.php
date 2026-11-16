@@ -42,7 +42,7 @@
             <thead>
                 <tr class="border-b border-border text-caption uppercase tracking-wide text-muted bg-surface">
                     <th class="w-10 px-2 py-2 font-normal">
-                        <input type="checkbox" data-picker-select-all checked class="rounded border-border text-primary focus:ring-primary">
+                        <input type="checkbox" data-picker-select-all checked class="size-4 shrink-0 cursor-pointer rounded border-border text-primary accent-navy focus:ring-primary">
                     </th>
                     <th class="px-2 py-2 font-normal">NIM</th>
                     <th class="px-2 py-2 font-normal">Name</th>

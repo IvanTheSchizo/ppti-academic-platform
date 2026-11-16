@@ -16,8 +16,14 @@
                     <x-ui.button variant="secondary" type="button" data-modal-open="#edit-lecturer-modal">
                         <x-ui.icon name="pencil" /> Edit
                     </x-ui.button>
+                    <x-ui.button type="button" :href="route('lecturers.profile.export', [$lecturer->id, 'tab' => $activeTab])">
+                        <x-ui.icon name="download" /> Download
+                    </x-ui.button>
+                @else
+                    <x-ui.button type="button" data-modal-open="#download-lecturer-courses-modal">
+                        <x-ui.icon name="download" /> Download
+                    </x-ui.button>
                 @endif
-                <x-ui.button type="button"><x-ui.icon name="download" /> Download</x-ui.button>
             </x-slot:actions>
         </x-ui.page-header>
 
@@ -46,5 +52,35 @@
 
     @if ($activeTab !== 'courses')
         @include('lecturers.partials.edit-modal')
+    @else
+        <x-ui.download-modal
+            id="download-lecturer-courses-modal"
+            title="Download Lecturer Courses"
+            :action="route('lecturers.profile.export', $lecturer->id)"
+            :params="['tab' => 'courses']"
+            :columns="['Period', 'Course ID', 'Course Name', 'Class', 'IKADQ']"
+            search-placeholder="Search by course or period"
+            item-label="course"
+        >
+            @forelse ($exportCourses as $course)
+                @php
+                    $searchString = strtolower($course->period . ' ' . $course->course_id . ' ' . $course->course_name . ' ' . $course->class);
+                @endphp
+                <tr data-download-row data-search="{{ $searchString }}" class="cursor-pointer transition-colors hover:bg-page">
+                    <td class="px-3 py-3 text-center">
+                        <input type="checkbox" name="ids[]" value="{{ $course->id }}" data-download-cb class="size-4 shrink-0 cursor-pointer rounded border-border text-primary accent-navy focus:ring-primary">
+                    </td>
+                    <td class="px-3 py-3">{{ $course->period }}</td>
+                    <td class="px-3 py-3 font-medium text-text">{{ $course->course_id }}</td>
+                    <td class="px-3 py-3">{{ $course->course_name }}</td>
+                    <td class="px-3 py-3 font-medium text-text">{{ $course->class }}</td>
+                    <td class="px-3 py-3">{{ number_format($course->ikadq, 2) }}</td>
+                </tr>
+            @empty
+                <tr>
+                    <td colspan="6" class="p-6 text-center text-muted">No courses found to download.</td>
+                </tr>
+            @endforelse
+        </x-ui.download-modal>
     @endif
 @endsection

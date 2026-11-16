@@ -6,9 +6,9 @@
     <div class="space-y-6">
         <x-ui.page-header title="Lecturer List" divider>
             <x-slot:actions>
-                <a href="{{ route('lecturers.export') }}">
-                    <x-ui.button type="button"><x-ui.icon name="download" /> Download</x-ui.button>
-                </a>
+                <x-ui.button type="button" data-modal-open="#download-lecturers-modal">
+                    <x-ui.icon name="download" /> Download
+                </x-ui.button>
             </x-slot:actions>
         </x-ui.page-header>
 
@@ -16,4 +16,32 @@
         @include('lecturers.partials.filters')
         @include('lecturers.partials.table')
     </div>
+
+    <x-ui.download-modal
+        id="download-lecturers-modal"
+        title="Download Lecturers"
+        :action="route('lecturers.export')"
+        :columns="['Lecturer Code', 'Name', 'Email', 'Status']"
+        search-placeholder="Search by name, code, or email"
+        item-label="lecturer"
+    >
+        @forelse ($exportLecturers as $lecturer)
+            @php
+                $searchString = strtolower($lecturer->lecturer_code . ' ' . $lecturer->name . ' ' . ($lecturer->email_binus_edu ?? '') . ' ' . $lecturer->status);
+            @endphp
+            <tr data-download-row data-search="{{ $searchString }}" class="cursor-pointer transition-colors hover:bg-page">
+                <td class="px-3 py-3 text-center">
+                    <input type="checkbox" name="ids[]" value="{{ $lecturer->id }}" data-download-cb class="size-4 shrink-0 cursor-pointer rounded border-border text-primary accent-navy focus:ring-primary">
+                </td>
+                <td class="px-3 py-3 font-medium text-text">{{ $lecturer->lecturer_code }}</td>
+                <td class="px-3 py-3">{{ $lecturer->name }}</td>
+                <td class="px-3 py-3">{{ $lecturer->email_binus_edu ?? '-' }}</td>
+                <td class="px-3 py-3">{{ $lecturer->status }}</td>
+            </tr>
+        @empty
+            <tr>
+                <td colspan="5" class="p-6 text-center text-muted">No lecturers found to download.</td>
+            </tr>
+        @endforelse
+    </x-ui.download-modal>
 @endsection

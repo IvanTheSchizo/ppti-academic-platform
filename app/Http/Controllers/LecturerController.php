@@ -15,11 +15,31 @@ class LecturerController extends Controller
     public function index(Request $request)
     {
         $stats = [
-            'total'    => Lecturer::count(),
-            'active'   => Lecturer::where('status', 'Active')->count(),
+            'total' => Lecturer::count(),
+            'active' => Lecturer::where('status', 'Active')->count(),
             'inactive' => Lecturer::where('status', 'Inactive')->count(),
         ];
 
+        $query = $this->filteredLecturersQuery($request);
+        $exportLecturers = (clone $query)->get();
+
+        // Pagination (retaining all active query parameters)
+        $perPage = max((int) $request->input('per_page', 10), 1);
+        $lecturers = $query->paginate($perPage)->withQueryString();
+
+        if ($request->wantsJson()) {
+            return response()->json($lecturers);
+        }
+
+        // Dropdown option sets for filter drawer
+        $jjaOptions = Lecturer::whereNotNull('jja')->pluck('jja')->unique()->sort()->values();
+        $educationOptions = Lecturer::whereNotNull('latest_education')->pluck('latest_education')->unique()->sort()->values();
+
+        return view('lecturers.index', compact('lecturers', 'exportLecturers', 'stats', 'jjaOptions', 'educationOptions'));
+    }
+
+    private function filteredLecturersQuery(Request $request)
+    {
         $query = Lecturer::query();
 
         // 1. Search Query
@@ -58,19 +78,7 @@ class LecturerController extends Controller
             $query->orderBy('name', 'asc');
         }
 
-        // 4. Pagination (retaining all active query parameters)
-        $perPage = max((int) $request->input('per_page', 10), 1);
-        $lecturers = $query->paginate($perPage)->withQueryString();
-
-        if ($request->wantsJson()) {
-            return response()->json($lecturers);
-        }
-
-        // Dropdown option sets for filter drawer
-        $jjaOptions = Lecturer::whereNotNull('jja')->pluck('jja')->unique()->sort()->values();
-        $educationOptions = Lecturer::whereNotNull('latest_education')->pluck('latest_education')->unique()->sort()->values();
-
-        return view('lecturers.index', compact('lecturers', 'stats', 'jjaOptions', 'educationOptions'));
+        return $query;
     }
 
     /**
@@ -81,48 +89,53 @@ class LecturerController extends Controller
         $activeTab = $request->query('tab', 'overview');
 
         $courses = null;
+        $exportCourses = collect();
         if ($activeTab === 'courses') {
-            $courseQuery = CourseRecord::where('lecturer_id', $lecturer->id)
-                ->with(['course', 'period', 'classGroup.batch', 'lecturerPerformance'])
-                ->withCount('studentGrades');
+            $courseQuery = $this->coursesQuery($lecturer, $request->input('q'));
 
-            if ($request->filled('q')) {
-                $q = $request->input('q');
-                $courseQuery->where(function ($sub) use ($q) {
-                    $sub->where('record_code', 'like', "%{$q}%")
-                        ->orWhereHas('course', function ($cq) use ($q) {
-                            $cq->where('course_name', 'like', "%{$q}%")
-                               ->orWhere('course_code', 'like', "%{$q}%");
-                        });
-                });
-            }
+            $transformCourse = function ($record) {
+                return (object) [
+                    'id' => $record->id,
+                    'period' => $record->period?->period_name ?? '-',
+                    'course_id' => $record->course?->course_code ?? '-',
+                    'course_name' => $record->course?->course_name ?? '-',
+                    'class' => $record->classGroup?->class_code ?? '-',
+                    'ikadq' => $record->lecturerPerformance?->ikadq ?? 0,
+                    'students_count' => $record->student_grades_count,
+                ];
+            };
+
+            $exportCourses = (clone $courseQuery)->get()->map($transformCourse);
 
             $perPage = max((int) $request->input('per_page', 10), 1);
             $courses = $courseQuery->paginate($perPage)->withQueryString();
-
-            // Transform into view presentation objects
-            $courses->getCollection()->transform(function ($record) {
-                return (object) [
-                    'period'         => $record->period?->period_name ?? '-',
-                    'course_id'      => $record->course?->course_code ?? '-',
-                    'course_name'    => $record->course?->course_name ?? '-',
-                    'class'          => $record->classGroup?->class_code ?? '-',
-                    'ikadq'          => $record->lecturerPerformance?->ikadq ?? 0,
-                    'students_count' => $record->student_grades_count,
-                ];
-            });
+            $courses->getCollection()->transform($transformCourse);
         }
 
         if ($request->wantsJson()) {
             return response()->json([
                 'lecturer' => $lecturer,
-                'courses'  => $courses,
+                'courses' => $courses,
             ]);
         }
 
         $kpi = $lecturer->performances()->avg('ikadq');
 
-        return view('lecturers.profile', compact('lecturer', 'activeTab', 'courses', 'kpi'));
+        return view('lecturers.profile', compact('lecturer', 'activeTab', 'courses', 'exportCourses', 'kpi'));
+    }
+
+    private function coursesQuery(Lecturer $lecturer, ?string $search = null)
+    {
+        return CourseRecord::where('lecturer_id', $lecturer->id)
+            ->with(['course', 'period', 'classGroup.batch', 'lecturerPerformance'])
+            ->withCount('studentGrades')
+            ->when(filled($search), fn ($query) => $query->where(function ($sub) use ($search) {
+                $sub->where('record_code', 'like', "%{$search}%")
+                    ->orWhereHas('course', function ($cq) use ($search) {
+                        $cq->where('course_name', 'like', "%{$search}%")
+                            ->orWhere('course_code', 'like', "%{$search}%");
+                    });
+            }));
     }
 
     /**
@@ -131,15 +144,15 @@ class LecturerController extends Controller
     public function update(Request $request, Lecturer $lecturer, AuditLogger $auditLogger)
     {
         $validated = $request->validate([
-            'lecturer_code'     => 'required|string|max:20|unique:lecturers,lecturer_code,' . $lecturer->id,
-            'name'              => 'required|string|max:255',
-            'latest_education'  => 'nullable|string|max:50',
-            'jja'               => 'nullable|string|max:100',
-            'status'            => 'required|string|in:Active,Inactive',
-            'email_binus_edu'   => 'nullable|email|max:255|unique:lecturers,email_binus_edu,' . $lecturer->id,
-            'email_binus_ac_id' => 'nullable|email|max:255|unique:lecturers,email_binus_ac_id,' . $lecturer->id,
-            'phone_number'      => 'nullable|string|max:30',
-            'gender'            => 'nullable|in:Male,Female',
+            'lecturer_code' => 'required|string|max:20|unique:lecturers,lecturer_code,'.$lecturer->id,
+            'name' => 'required|string|max:255',
+            'latest_education' => 'nullable|string|max:50',
+            'jja' => 'nullable|string|max:100',
+            'status' => 'required|string|in:Active,Inactive',
+            'email_binus_edu' => 'nullable|email|max:255|unique:lecturers,email_binus_edu,'.$lecturer->id,
+            'email_binus_ac_id' => 'nullable|email|max:255|unique:lecturers,email_binus_ac_id,'.$lecturer->id,
+            'phone_number' => 'nullable|string|max:30',
+            'gender' => 'nullable|in:Male,Female',
         ]);
 
         // Capture the approved fields before and after the update so the audit log
@@ -167,16 +180,20 @@ class LecturerController extends Controller
     /**
      * Export lecturers list as CSV.
      */
-    public function export()
+    public function export(Request $request)
     {
-        $filename = 'lecturers_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'lecturers_'.now()->format('Ymd_His').'.csv';
 
         $headers = [
-            'Content-Type'        => 'text/csv',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () {
+        $ids = array_values(array_filter((array) $request->input('ids', [])));
+        $query = $this->filteredLecturersQuery($request)
+            ->when($ids !== [], fn ($q) => $q->whereIn('lecturers.id', $ids));
+
+        $callback = function () use ($query) {
             $handle = fopen('php://output', 'w');
 
             fputcsv($handle, [
@@ -191,7 +208,7 @@ class LecturerController extends Controller
                 'Status',
             ]);
 
-            Lecturer::chunk(200, function ($lecturers) use ($handle) {
+            $query->chunk(200, function ($lecturers) use ($handle) {
                 foreach ($lecturers as $lecturer) {
                     fputcsv($handle, [
                         $lecturer->nip,
@@ -211,5 +228,76 @@ class LecturerController extends Controller
         };
 
         return response()->stream($callback, 200, $headers);
+    }
+
+    /**
+     * Download one lecturer's profile as CSV: the course list for the Courses tab,
+     * otherwise the lecturer's overview details.
+     */
+    public function exportProfile(Request $request, Lecturer $lecturer)
+    {
+        $courses = $request->query('tab') === 'courses';
+        $filename = 'lecturer_'.$lecturer->lecturer_code.($courses ? '_courses' : '').'.csv';
+        $ids = array_values(array_filter((array) $request->input('ids', [])));
+        $search = $request->input('q');
+
+        $callback = function () use ($lecturer, $courses, $ids, $search) {
+            $file = fopen('php://output', 'w');
+
+            if ($courses) {
+                fputcsv($file, ['Period', 'Course ID', 'Course Name', 'Class', 'IKADQ', 'Students']);
+
+                $this->coursesQuery($lecturer, $search)
+                    ->when($ids !== [], fn ($q) => $q->whereIn('course_records.id', $ids))
+                    ->chunk(200, function ($records) use ($file) {
+                        foreach ($records as $record) {
+                            fputcsv($file, [
+                                $record->period?->period_name ?? '-',
+                                $record->course?->course_code ?? '-',
+                                $record->course?->course_name ?? '-',
+                                $record->classGroup?->class_code ?? '-',
+                                number_format((float) ($record->lecturerPerformance?->ikadq ?? 0), 2),
+                                $record->student_grades_count,
+                            ]);
+                        }
+                    });
+            } else {
+                $kpi = $lecturer->performances()->avg('ikadq');
+
+                fputcsv($file, [
+                    'Lecturer Code',
+                    'Name',
+                    'NIP',
+                    'JJA',
+                    'Latest Education',
+                    'Status',
+                    'Gender',
+                    'Email (binus.edu)',
+                    'Email (binus.ac.id)',
+                    'Phone Number',
+                    'Key Performance Index',
+                ]);
+                fputcsv($file, [
+                    $lecturer->lecturer_code,
+                    $lecturer->name,
+                    $lecturer->nip,
+                    $lecturer->jja,
+                    $lecturer->latest_education,
+                    $lecturer->status,
+                    $lecturer->gender ?? '-',
+                    $lecturer->email_binus_edu,
+                    $lecturer->email_binus_ac_id,
+                    $lecturer->phone_number,
+                    $kpi !== null ? number_format((float) $kpi, 2) : '-',
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
     }
 }

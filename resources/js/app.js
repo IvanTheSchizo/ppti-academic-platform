@@ -165,7 +165,7 @@ window.addEventListener('pageshow', () => document.querySelectorAll('[data-date-
 document.addEventListener('click', (event) => {
     const row = event.target.closest('tr[data-row-href]');
 
-    if (row && !event.target.closest('a, button, input, select, label')) {
+    if (row && !event.target.closest('a, button, input, select, label, [data-select-cell]')) {
         window.location.href = row.dataset.rowHref;
     }
 });
@@ -282,7 +282,7 @@ const initStudentPicker = (root) => {
         cbTd.className = 'px-2 py-2';
         
         const inputName = withGrade ? '' : 'name="students[]"';
-        cbTd.innerHTML = `<input type="checkbox" ${inputName} value="${student.id}" checked data-picker-checkbox class="rounded border-border text-primary focus:ring-primary">`;
+        cbTd.innerHTML = `<input type="checkbox" ${inputName} value="${student.id}" checked data-picker-checkbox class="size-4 shrink-0 cursor-pointer rounded border-border text-primary accent-navy focus:ring-primary">`;
         tr.append(cbTd);
 
         [student.nim, student.name, student.batch, student.class].forEach((text) => tr.append(cell(text)));
@@ -702,3 +702,109 @@ document.querySelectorAll('[data-record-add]').forEach((root) => {
         }
     });
 });
+
+// Download modal: search filtering, select/deselect all, row click toggle, and live selected count.
+const initDownloadModal = (form) => {
+    const searchInput = form.querySelector('[data-download-search]');
+    const selectAllCb = form.querySelector('[data-download-select-all]');
+    const selectAllBtn = form.querySelector('[data-download-select-all-btn]');
+    const deselectAllBtn = form.querySelector('[data-download-deselect-all-btn]');
+    const checkboxes = [...form.querySelectorAll('[data-download-cb]:not(:disabled)')];
+    const rows = [...form.querySelectorAll('[data-download-row]')];
+    const countDisplay = form.querySelector('[data-download-count]');
+    const submitBtn = form.querySelector('[data-download-submit]');
+    const submitLabel = form.querySelector('[data-download-submit-label]');
+    const itemLabel = form.dataset.itemLabel || 'record';
+
+    const updateCount = () => {
+        const count = checkboxes.filter((cb) => cb.checked).length;
+
+        if (countDisplay) {
+            countDisplay.textContent = count;
+        }
+
+        if (submitLabel) {
+            submitLabel.textContent = `Download ${count} ${itemLabel}${count !== 1 ? 's' : ''}`;
+        }
+
+        if (submitBtn) {
+            submitBtn.disabled = count === 0;
+            submitBtn.classList.toggle('pointer-events-none', count === 0);
+            submitBtn.classList.toggle('opacity-50', count === 0);
+        }
+
+        if (selectAllCb) {
+            const visible = checkboxes.filter((cb) => cb.closest('tr').style.display !== 'none');
+            selectAllCb.disabled = visible.length === 0;
+            selectAllCb.checked = visible.length > 0 && visible.every((cb) => cb.checked);
+            selectAllCb.indeterminate = visible.some((cb) => cb.checked) && !visible.every((cb) => cb.checked);
+        }
+    };
+
+    searchInput?.addEventListener('input', (event) => {
+        const query = event.target.value.toLowerCase();
+
+        rows.forEach((row) => {
+            row.style.display = row.dataset.search.includes(query) ? '' : 'none';
+        });
+
+        updateCount();
+    });
+
+    checkboxes.forEach((cb) => cb.addEventListener('change', updateCount));
+
+    rows.forEach((row) => {
+        row.addEventListener('click', (event) => {
+            if (event.target.matches('input[type="checkbox"]')) {
+                return;
+            }
+
+            const cb = row.querySelector('[data-download-cb]:not(:disabled)');
+
+            if (cb) {
+                cb.checked = !cb.checked;
+                updateCount();
+            }
+        });
+    });
+
+    selectAllCb?.addEventListener('change', (event) => {
+        const isChecked = event.target.checked;
+
+        checkboxes.forEach((cb) => {
+            if (cb.closest('tr').style.display !== 'none') {
+                cb.checked = isChecked;
+            }
+        });
+
+        updateCount();
+    });
+
+    selectAllBtn?.addEventListener('click', () => {
+        checkboxes.forEach((cb) => {
+            if (cb.closest('tr').style.display !== 'none') {
+                cb.checked = true;
+            }
+        });
+
+        updateCount();
+    });
+
+    deselectAllBtn?.addEventListener('click', () => {
+        checkboxes.forEach((cb) => {
+            if (cb.closest('tr').style.display !== 'none') {
+                cb.checked = false;
+            }
+        });
+
+        updateCount();
+    });
+
+    form.addEventListener('submit', () => {
+        setTimeout(() => form.closest('dialog')?.close(), 100);
+    });
+
+    updateCount();
+};
+
+document.querySelectorAll('[data-download-modal]').forEach(initDownloadModal);

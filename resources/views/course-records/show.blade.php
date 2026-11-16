@@ -14,7 +14,7 @@
                 <x-ui.button variant="secondary" type="button" data-modal-open="#edit-record-modal">
                     <x-ui.icon name="pencil" /> Edit
                 </x-ui.button>
-                <x-ui.button type="button" :href="route('course-records.show.export', $record->id)">
+                <x-ui.button type="button" data-modal-open="#download-record-students-modal">
                     <x-ui.icon name="download" /> Download
                 </x-ui.button>
             </x-slot:actions>
@@ -63,15 +63,6 @@
                 </div>
             </div>
 
-            <!-- <div id="add-students-panel" class="relative mb-4"
-                 data-record-add
-                 data-search-url="{{ route('input-data.students.search') }}"
-                 data-add-url="{{ route('course-records.students.store', $record->id) }}"
-                 data-exclude-record="{{ $record->id }}">
-                <x-form.search-input type="search" placeholder="Search student by name or NIM to add" aria-label="Search student by name or NIM to add" autocomplete="off" :filled="true" data-record-add-search />
-                <ul data-record-add-results hidden class="absolute inset-x-0 top-full z-10 mt-1 max-h-64 overflow-y-auto rounded-ui border border-border bg-surface py-1 text-body"></ul>
-            </div> -->
-
             <x-ui.table :headings="[
                 ['label' => 'NIM', 'sortable' => false],
                 ['label' => 'Name', 'sortable' => false],
@@ -110,4 +101,37 @@
     @include('course-records.partials.edit-modal')
     @include('course-records.partials.add-student-modal')
     @include('course-records.partials.remove-student-modal')
+
+    <x-ui.download-modal
+        id="download-record-students-modal"
+        title="Download Enrolled Students"
+        :action="route('course-records.show.export', $record->id)"
+        :columns="['NIM', 'Name', 'Batch', 'Class']"
+        search-placeholder="Search enrolled students by name or NIM"
+        item-label="student"
+    >
+        @php
+            $enrolledStudents = $allStudents->whereIn('id', $enrolledStudentIds);
+        @endphp
+        @forelse ($enrolledStudents as $student)
+            @php
+                $batchName = $student->classGroup?->batch?->batch_name ?? '-';
+                $classCode = $student->classGroup?->class_code ?? '-';
+                $searchString = strtolower($student->nim . ' ' . $student->name . ' ' . $batchName . ' ' . $classCode);
+            @endphp
+            <tr data-download-row data-search="{{ $searchString }}" class="cursor-pointer transition-colors hover:bg-page">
+                <td class="px-3 py-3 text-center">
+                    <input type="checkbox" name="ids[]" value="{{ $student->id }}" data-download-cb class="size-4 shrink-0 cursor-pointer rounded border-border text-primary accent-navy focus:ring-primary">
+                </td>
+                <td class="px-3 py-3 font-medium text-text">{{ $student->nim }}</td>
+                <td class="px-3 py-3">{{ $student->name }}</td>
+                <td class="px-3 py-3">{{ $batchName }}</td>
+                <td class="px-3 py-3 font-medium text-text">{{ $classCode }}</td>
+            </tr>
+        @empty
+            <tr>
+                <td colspan="5" class="p-6 text-center text-muted">No students enrolled yet.</td>
+            </tr>
+        @endforelse
+    </x-ui.download-modal>
 @endsection

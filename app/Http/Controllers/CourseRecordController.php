@@ -20,7 +20,50 @@ class CourseRecordController extends Controller
      */
     public function index(Request $request)
     {
-       $query = CourseRecord::query()
+        $query = $this->filteredCourseRecordsQuery($request);
+
+        $transformRecord = function ($record) {
+            return (object) [
+                'id' => $record->id,
+                'record_code' => $record->record_code,
+                'period' => $record->period?->period_name ?? '-',
+                'course_id' => $record->course?->course_code ?? '-',
+                'class' => $record->classGroup?->class_code ?? '-',
+                'lecturer_code' => $record->lecturer?->lecturer_code ?? '-',
+                'students_count' => $record->student_grades_count,
+            ];
+        };
+
+        $exportCourseRecords = (clone $query)->get()->map($transformRecord);
+
+        // Paginate & Preserve Query String
+        $perPage = max((int) $request->input('per_page', 10), 1);
+        $courseRecords = $query->paginate($perPage)->withQueryString();
+        $courseRecords->getCollection()->transform($transformRecord);
+
+        if ($request->wantsJson()) {
+            return response()->json($courseRecords);
+        }
+
+        // Dynamic Filter Options directly from DB
+        $periodOptions = Period::pluck('period_name')->unique()->sort()->values();
+        $classOptions = ClassGroup::pluck('class_code')->unique()->sort()->values();
+        $lecturerOptions = Lecturer::pluck('lecturer_code')->unique()->sort()->values();
+        $courseOptions = Course::orderBy('course_code')->get(['course_code', 'course_name']);
+
+        return view('course-records.index', compact(
+            'courseRecords',
+            'exportCourseRecords',
+            'periodOptions',
+            'classOptions',
+            'lecturerOptions',
+            'courseOptions'
+        ));
+    }
+
+    private function filteredCourseRecordsQuery(Request $request)
+    {
+        $query = CourseRecord::query()
             ->select('course_records.*')
             ->withCount('studentGrades')
             ->with([
@@ -34,14 +77,14 @@ class CourseRecordController extends Controller
         if ($request->filled('q')) {
             $q = $request->input('q');
             $query->where(function ($sub) use ($q) {
-                $sub->where('record_code', 'like', "%{$q}%")
+                $sub->where('course_records.record_code', 'like', "%{$q}%")
                     ->orWhereHas('course', function ($cq) use ($q) {
                         $cq->where('course_code', 'like', "%{$q}%")
-                           ->orWhere('course_name', 'like', "%{$q}%");
+                            ->orWhere('course_name', 'like', "%{$q}%");
                     })
                     ->orWhereHas('lecturer', function ($lq) use ($q) {
                         $lq->where('lecturer_code', 'like', "%{$q}%")
-                           ->orWhere('name', 'like', "%{$q}%");
+                            ->orWhere('name', 'like', "%{$q}%");
                     })
                     ->orWhereHas('classGroup', function ($cgq) use ($q) {
                         $cgq->where('class_code', 'like', "%{$q}%");
@@ -76,63 +119,30 @@ class CourseRecordController extends Controller
             $courseCode = $request->input('course');
             $query->whereHas('course', fn ($cq) => $cq->where('course_code', $courseCode));
         }
+
         // 6. Dynamic Sorting
         $sort = $request->input('sort', 'record_code');
         $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
 
         if ($sort === 'period') {
             $query->join('periods', 'course_records.period_id', '=', 'periods.id')
-                  ->orderBy('periods.period_name', $direction);
+                ->orderBy('periods.period_name', $direction);
         } elseif ($sort === 'course_id') {
             $query->join('courses', 'course_records.course_id', '=', 'courses.id')
-                  ->orderBy('courses.course_code', $direction);
+                ->orderBy('courses.course_code', $direction);
         } elseif ($sort === 'class') {
             $query->join('class_groups', 'course_records.class_id', '=', 'class_groups.id')
-                  ->orderBy('class_groups.class_code', $direction);
+                ->orderBy('class_groups.class_code', $direction);
         } elseif ($sort === 'lecturer_code') {
             $query->join('lecturers', 'course_records.lecturer_id', '=', 'lecturers.id')
-                  ->orderBy('lecturers.lecturer_code', $direction);
+                ->orderBy('lecturers.lecturer_code', $direction);
         } elseif ($sort === 'students') {
             $query->orderBy('student_grades_count', $direction);
         } else {
             $query->orderBy('course_records.record_code', $direction);
         }
 
-        // 7. Paginate & Preserve Query String
-        $perPage = max((int) $request->input('per_page', 10), 1);
-        $courseRecords = $query->paginate($perPage)->withQueryString();
-
-        // Transform for presentation
-        $courseRecords->getCollection()->transform(function ($record) {
-            return (object) [
-                'id'             => $record->id,
-                'record_code'    => $record->record_code,
-                'period'         => $record->period?->period_name ?? '-',
-                'course_id'      => $record->course?->course_code ?? '-',
-                'class'          => $record->classGroup?->class_code ?? '-',
-                'lecturer_code'  => $record->lecturer?->lecturer_code ?? '-',
-                'students_count' => $record->student_grades_count,
-            ];
-        });
-
-        if ($request->wantsJson()) {
-            return response()->json($courseRecords);
-        }
-
-        // 8. Dynamic Filter Options directly from DB
-        $periodOptions = Period::pluck('period_name')->unique()->sort()->values();
-
-        $classOptions = ClassGroup::pluck('class_code')->unique()->sort()->values();
-        $lecturerOptions = Lecturer::pluck('lecturer_code')->unique()->sort()->values();
-        $courseOptions = Course::orderBy('course_code')->get(['course_code', 'course_name']);
-
-        return view('course-records.index', compact(
-            'courseRecords',
-            'periodOptions',
-            'classOptions',
-            'lecturerOptions',
-            'courseOptions'
-        ));
+        return $query;
     }
 
     /**
@@ -150,7 +160,7 @@ class CourseRecordController extends Controller
             ->paginate(max((int) $request->input('per_page', 10), 1))
             ->withQueryString();
 
-        // NEW: Fetch all students and currently enrolled IDs for the popup modal
+        // Fetch all students and currently enrolled IDs for the popup modal
         $allStudents = Student::with('classGroup.batch')->orderBy('nim')->get();
         $enrolledStudentIds = $courseRecord->studentGrades()->pluck('student_id')->toArray();
 
@@ -172,9 +182,9 @@ class CourseRecordController extends Controller
     public function update(Request $request, CourseRecord $courseRecord)
     {
         $validated = $request->validate([
-            'course_id'   => 'required|exists:courses,id',
-            'period_id'   => 'required|exists:periods,id',
-            'class_id'    => [
+            'course_id' => 'required|exists:courses,id',
+            'period_id' => 'required|exists:periods,id',
+            'class_id' => [
                 'required', 'exists:class_groups,id',
                 Rule::unique('course_records', 'class_id')
                     ->where('course_id', $request->input('course_id'))
@@ -182,7 +192,7 @@ class CourseRecordController extends Controller
                     ->ignore($courseRecord->id),
             ],
             'lecturer_id' => 'required|exists:lecturers,id',
-            'ikadq'       => 'nullable|numeric|between:0,4',
+            'ikadq' => 'nullable|numeric|between:0,4',
         ], [
             'class_id.unique' => 'A course record for this course, period and class already exists.',
         ]);
@@ -209,8 +219,8 @@ class CourseRecordController extends Controller
     public function addStudent(Request $request, CourseRecord $courseRecord)
     {
         $validated = $request->validate([
-            'students'   => 'required|array',
-            'students.*' => 'exists:students,id'
+            'students' => 'required|array',
+            'students.*' => 'exists:students,id',
         ]);
 
         $addedCount = 0;
@@ -241,8 +251,8 @@ class CourseRecordController extends Controller
     public function removeStudents(Request $request, CourseRecord $courseRecord)
     {
         $validated = $request->validate([
-            'students'   => 'required|array',
-            'students.*' => 'exists:students,id'
+            'students' => 'required|array',
+            'students.*' => 'exists:students,id',
         ]);
 
         $deletedCount = $courseRecord->studentGrades()
@@ -252,15 +262,17 @@ class CourseRecordController extends Controller
         return redirect()->route('course-records.show', $courseRecord->id)
             ->with('success', "{$deletedCount} student(s) removed from the course record.");
     }
-        
+
     /**
      * Download one course record (details plus enrolled students) as CSV.
      */
-    public function exportRecord(CourseRecord $courseRecord)
+    public function exportRecord(Request $request, CourseRecord $courseRecord)
     {
         $courseRecord->load(['course', 'lecturer', 'period', 'classGroup', 'lecturerPerformance']);
+        $ids = array_values(array_filter((array) $request->input('ids', [])));
+        $search = $request->input('q');
 
-        $callback = function () use ($courseRecord) {
+        $callback = function () use ($courseRecord, $ids, $search) {
             $handle = fopen('php://output', 'w');
 
             fputcsv($handle, ['Record Code', 'Course Code', 'Course Name', 'Period', 'Class', 'Lecturer', 'IKADQ']);
@@ -276,23 +288,25 @@ class CourseRecordController extends Controller
             fputcsv($handle, []);
             fputcsv($handle, ['NIM', 'Name', 'Batch', 'Class']);
 
-            $this->studentsQuery($courseRecord)->chunk(200, function ($students) use ($handle) {
-                foreach ($students as $student) {
-                    fputcsv($handle, [
-                        $student->nim,
-                        $student->name,
-                        $student->classGroup?->batch?->batch_name,
-                        $student->classGroup?->class_code,
-                    ]);
-                }
-            });
+            $this->studentsQuery($courseRecord, $search)
+                ->when($ids !== [], fn ($q) => $q->whereIn('students.id', $ids))
+                ->chunk(200, function ($students) use ($handle) {
+                    foreach ($students as $student) {
+                        fputcsv($handle, [
+                            $student->nim,
+                            $student->name,
+                            $student->classGroup?->batch?->batch_name,
+                            $student->classGroup?->class_code,
+                        ]);
+                    }
+                });
 
             fclose($handle);
         };
 
         return response()->stream($callback, 200, [
-            'Content-Type'        => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="course_record_' . $courseRecord->record_code . '.csv"',
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="course_record_'.$courseRecord->record_code.'.csv"',
         ]);
     }
 
@@ -310,16 +324,20 @@ class CourseRecordController extends Controller
     /**
      * Export course records to CSV.
      */
-    public function export()
+    public function export(Request $request)
     {
-        $filename = 'course_records_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'course_records_'.now()->format('Ymd_His').'.csv';
 
         $headers = [
-            'Content-Type'        => 'text/csv',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () {
+        $ids = array_values(array_filter((array) $request->input('ids', [])));
+        $query = $this->filteredCourseRecordsQuery($request)
+            ->when($ids !== [], fn ($q) => $q->whereIn('course_records.id', $ids));
+
+        $callback = function () use ($query) {
             $handle = fopen('php://output', 'w');
 
             fputcsv($handle, [
@@ -332,20 +350,19 @@ class CourseRecordController extends Controller
                 'Lecturer Name',
             ]);
 
-            CourseRecord::with(['course', 'lecturer', 'period', 'classGroup'])
-                ->chunk(200, function ($records) use ($handle) {
-                    foreach ($records as $record) {
-                        fputcsv($handle, [
-                            $record->record_code,
-                            $record->period?->period_name ?? '-',
-                            $record->course?->course_code ?? '-',
-                            $record->course?->course_name ?? '-',
-                            $record->classGroup?->class_code ?? '-',
-                            $record->lecturer?->lecturer_code ?? '-',
-                            $record->lecturer?->name ?? '-',
-                        ]);
-                    }
-                });
+            $query->chunk(200, function ($records) use ($handle) {
+                foreach ($records as $record) {
+                    fputcsv($handle, [
+                        $record->record_code,
+                        $record->period?->period_name ?? '-',
+                        $record->course?->course_code ?? '-',
+                        $record->course?->course_name ?? '-',
+                        $record->classGroup?->class_code ?? '-',
+                        $record->lecturer?->lecturer_code ?? '-',
+                        $record->lecturer?->name ?? '-',
+                    ]);
+                }
+            });
 
             fclose($handle);
         };

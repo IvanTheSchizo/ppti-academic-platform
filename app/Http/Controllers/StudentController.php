@@ -17,78 +17,18 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
-            // 1. Calculate Stat Bar Metrics
+        // 1. Calculate Stat Bar Metrics
         $stats = [
-            'total'     => Student::count(),
-            'active'    => Student::where('status', 'Active')->count(),
+            'total' => Student::count(),
+            'active' => Student::where('status', 'Active')->count(),
             'graduated' => Student::where('status', 'Graduated')->count(),
-            'on_leave'  => Student::where('status', 'On Leave')->count(),
+            'on_leave' => Student::where('status', 'On Leave')->count(),
         ];
 
-        // 2. Base Query with Relationships Eager Loaded
-        $query = Student::with(['classGroup.batch']);
+        $query = $this->filteredStudentsQuery($request);
+        $exportStudents = (clone $query)->get();
 
-        // 3. Search (Name or NIM)
-        if ($request->filled('q')) {
-            $q = $request->input('q');
-            $query->where(function ($sub) use ($q) {
-                $sub->where('name', 'like', "%{$q}%")
-                    ->orWhere('nim', 'like', "%{$q}%");
-            });
-        }
-
-        // 4. Batch Filter
-        if ($request->filled('batch')) {
-            $batchName = $request->input('batch');
-            $query->whereHas('classGroup.batch', function ($q) use ($batchName) {
-                $q->where('batch_name', $batchName);
-            });
-        }
-
-        // 5. Status Filter
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
-        }
-
-        // 6. Class Code Filter
-        if ($request->filled('class')) {
-            $classCode = $request->input('class');
-            $query->whereHas('classGroup', function ($q) use ($classCode) {
-                $q->where('class_code', $classCode);
-            });
-        }
-
-        // 7. GPA Range Filters
-        if ($request->filled('gpa_min') && is_numeric($request->input('gpa_min'))) {
-            $query->where('cumulative_gpa', '>=', (float) $request->input('gpa_min'));
-        }
-        if ($request->filled('gpa_max') && is_numeric($request->input('gpa_max'))) {
-            $query->where('cumulative_gpa', '<=', (float) $request->input('gpa_max'));
-        }
-
-// 8. Sorting
-        $sortColumn = $request->input('sort', 'name');
-        $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
-
-        if ($sortColumn === 'batch') {
-            // Join class_groups and batches so we can sort students by batch number
-            $query->join('class_groups', 'students.class_id', '=', 'class_groups.id')
-                  ->join('batches', 'class_groups.batch_id', '=', 'batches.id')
-                  ->select('students.*')
-                  ->orderBy('batches.id', $direction);
-        } elseif ($sortColumn === 'class') {
-            $query->join('class_groups', 'students.class_id', '=', 'class_groups.id')
-                  ->select('students.*')
-                  ->orderBy('class_groups.class_code', $direction);
-        } elseif ($sortColumn === 'gpa') {
-            $query->orderBy('cumulative_gpa', $direction);
-        } elseif (in_array($sortColumn, ['nim', 'name', 'status'])) {
-            $query->orderBy($sortColumn, $direction);
-        } else {
-            $query->latest();
-        }
-
-        // 9. Paginate and Retain Active Query String
+        // Paginate and Retain Active Query String
         $perPage = max((int) $request->input('per_page', 10), 1);
         $students = $query->paginate($perPage)->withQueryString();
 
@@ -103,21 +43,26 @@ class StudentController extends Controller
         }, SORT_NUMERIC)->values();
 
         $classes = ClassGroup::pluck('class_code')->unique()->sort()->values();
-        return view('students.index', compact('students', 'stats', 'batches', 'classes'));
+
+        return view('students.index', compact('students', 'exportStudents', 'stats', 'batches', 'classes'));
     }
 
-    public function export()
+    public function export(Request $request)
     {
         $headers = [
-            'Content-Type'        => 'text/csv',
-            'Content-Disposition' => 'attachment; filename="students_' . date('Y-m-d') . '.csv"',
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="students_'.date('Y-m-d').'.csv"',
         ];
 
-        $callback = function () {
+        $ids = array_values(array_filter((array) $request->input('ids', [])));
+        $query = $this->filteredStudentsQuery($request)
+            ->when($ids !== [], fn ($q) => $q->whereIn('students.id', $ids));
+
+        $callback = function () use ($query) {
             $file = fopen('php://output', 'w');
             fputcsv($file, ['Batch', 'Student ID', 'Name', 'Class', 'Status', 'GPA']);
 
-            Student::with(['classGroup.batch'])->chunk(200, function ($students) use ($file) {
+            $query->chunk(200, function ($students) use ($file) {
                 foreach ($students as $student) {
                     fputcsv($file, [
                         $student->classGroup?->batch?->batch_name ?? '-',
@@ -136,6 +81,72 @@ class StudentController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    private function filteredStudentsQuery(Request $request)
+    {
+        $query = Student::with(['classGroup.batch']);
+
+        // Search (Name or NIM)
+        if ($request->filled('q')) {
+            $q = $request->input('q');
+            $query->where(function ($sub) use ($q) {
+                $sub->where('students.name', 'like', "%{$q}%")
+                    ->orWhere('students.nim', 'like', "%{$q}%");
+            });
+        }
+
+        // Batch Filter
+        if ($request->filled('batch')) {
+            $batchName = $request->input('batch');
+            $query->whereHas('classGroup.batch', function ($q) use ($batchName) {
+                $q->where('batch_name', $batchName);
+            });
+        }
+
+        // Status Filter
+        if ($request->filled('status')) {
+            $query->where('students.status', $request->input('status'));
+        }
+
+        // Class Code Filter
+        if ($request->filled('class')) {
+            $classCode = $request->input('class');
+            $query->whereHas('classGroup', function ($q) use ($classCode) {
+                $q->where('class_code', $classCode);
+            });
+        }
+
+        // GPA Range Filters
+        if ($request->filled('gpa_min') && is_numeric($request->input('gpa_min'))) {
+            $query->where('students.cumulative_gpa', '>=', (float) $request->input('gpa_min'));
+        }
+        if ($request->filled('gpa_max') && is_numeric($request->input('gpa_max'))) {
+            $query->where('students.cumulative_gpa', '<=', (float) $request->input('gpa_max'));
+        }
+
+        // Sorting
+        $sortColumn = $request->input('sort', 'name');
+        $direction = strtolower($request->input('direction', 'asc')) === 'desc' ? 'desc' : 'asc';
+
+        if ($sortColumn === 'batch') {
+            $query->join('class_groups', 'students.class_id', '=', 'class_groups.id')
+                ->join('batches', 'class_groups.batch_id', '=', 'batches.id')
+                ->select('students.*')
+                ->orderBy('batches.id', $direction);
+        } elseif ($sortColumn === 'class') {
+            $query->join('class_groups', 'students.class_id', '=', 'class_groups.id')
+                ->select('students.*')
+                ->orderBy('class_groups.class_code', $direction);
+        } elseif ($sortColumn === 'gpa') {
+            $query->orderBy('students.cumulative_gpa', $direction);
+        } elseif (in_array($sortColumn, ['nim', 'name', 'status'])) {
+            $query->orderBy("students.{$sortColumn}", $direction);
+        } else {
+            $query->latest('students.created_at');
+        }
+
+        return $query;
+    }
+
     public function show(Request $request, Student $student)
     {
         $student->load('classGroup.batch');
@@ -147,70 +158,63 @@ class StudentController extends Controller
         $activeTab = $request->query('tab') === 'grades' ? 'grades' : 'overview';
         $semesterGpa = collect();
         $grades = null;
+        $exportGrades = collect();
 
         if ($activeTab === 'grades') {
-            $query = $this->gradesQuery($student);
+            $query = $this->gradesQuery($student, $request->input('q'));
 
-            if ($request->filled('q')) {
-                $q = $request->input('q');
-                $query->where(function ($sub) use ($q) {
-                    $sub->whereHas('courseRecord.course', function ($cq) use ($q) {
-                        $cq->where('course_name', 'like', "%{$q}%")
-                            ->orWhere('course_code', 'like', "%{$q}%");
-                    })->orWhereHas('courseRecord.lecturer', function ($lq) use ($q) {
-                        $lq->where('name', 'like', "%{$q}%");
-                    });
-                });
-            }
-
-            $perPage = max((int) $request->input('per_page', 10), 1);
-            $grades = $query->paginate($perPage)->withQueryString();
-
-            $grades->getCollection()->transform(function ($grade) {
+            $transformGrade = function ($grade) {
                 $record = $grade->courseRecord;
 
                 return (object) [
-                    'period'      => $record->period?->period_name ?? '-',
-                    'course_id'   => $record->course?->course_code ?? '-',
+                    'id' => $grade->id,
+                    'period' => $record->period?->period_name ?? '-',
+                    'course_id' => $record->course?->course_code ?? '-',
                     'course_name' => $record->course?->course_name ?? '-',
-                    'lecturer'    => $record->lecturer,
-                    'sks'         => $record->course?->sks ?? '-',
-                    'grade'       => $grade->letter_grade,
+                    'lecturer' => $record->lecturer,
+                    'sks' => $record->course?->sks ?? '-',
+                    'grade' => $grade->letter_grade,
                 ];
-            });
+            };
+
+            $exportGrades = (clone $query)->get()->map($transformGrade);
+
+            $perPage = max((int) $request->input('per_page', 10), 1);
+            $grades = $query->paginate($perPage)->withQueryString();
+            $grades->getCollection()->transform($transformGrade);
         } else {
             // Average grade per period, oldest first, for the Grade Point chart
             $semesterGpa = $this->semesterAverages($student);
         }
 
         $classGroups = ClassGroup::with('batch')->get()
-            ->sortBy(fn ($classGroup) => ($classGroup->batch?->batch_name ?? '') . '-' . $classGroup->class_code)
+            ->sortBy(fn ($classGroup) => ($classGroup->batch?->batch_name ?? '').'-'.$classGroup->class_code)
             ->values();
 
         $periods = Period::orderBy('start_date')->get(['id', 'period_name']);
 
-        return view('students.profile', compact('student', 'activeTab', 'grades', 'semesterGpa', 'classGroups', 'periods'));
+        return view('students.profile', compact('student', 'activeTab', 'grades', 'exportGrades', 'semesterGpa', 'classGroups', 'periods'));
     }
 
     public function update(Request $request, Student $student, AuditLogger $auditLogger)
     {
         $validated = $request->validate([
-            'nim'                    => 'required|string|max:255|unique:students,nim,' . $student->id,
-            'name'                   => 'required|string|max:255',
-            'class_id'               => 'required|exists:class_groups,id',
-            'status'                 => 'required|in:Active,Graduated,On Leave',
-            'gender'                 => 'nullable|in:Male,Female',
-            'email'                  => 'nullable|email|max:255',
-            'phone_number'           => 'nullable|string|max:30',
-            'date_of_birth'          => 'nullable|date|before_or_equal:today',
-            'semesters'              => 'nullable|array',
-            'semesters.*.period_id'  => 'required|distinct|exists:periods,id',
-            'semesters.*.gpa'        => 'required|numeric|between:0,4',
+            'nim' => 'required|string|max:255|unique:students,nim,'.$student->id,
+            'name' => 'required|string|max:255',
+            'class_id' => 'required|exists:class_groups,id',
+            'status' => 'required|in:Active,Graduated,On Leave',
+            'gender' => 'nullable|in:Male,Female',
+            'email' => 'nullable|email|max:255',
+            'phone_number' => 'nullable|string|max:30',
+            'date_of_birth' => 'nullable|date|before_or_equal:today',
+            'semesters' => 'nullable|array',
+            'semesters.*.period_id' => 'required|distinct|exists:periods,id',
+            'semesters.*.gpa' => 'required|numeric|between:0,4',
         ], [
             'semesters.*.period_id.required' => 'Select a period for every semester GPA row.',
             'semesters.*.period_id.distinct' => 'Each semester can only be listed once.',
-            'semesters.*.gpa.required'       => 'Enter a GPA for every semester row.',
-            'semesters.*.gpa.between'        => 'Semester GPA must be between 0.00 and 4.00.',
+            'semesters.*.gpa.required' => 'Enter a GPA for every semester row.',
+            'semesters.*.gpa.between' => 'Semester GPA must be between 0.00 and 4.00.',
         ]);
 
         $semesters = collect($validated['semesters'] ?? []);
@@ -238,6 +242,7 @@ class StudentController extends Controller
 
         return redirect()->route('students.profile', $student->id)->with('success', 'Student updated successfully.');
     }
+
     /**
      * Download one student's profile as CSV: the grade list for the Grades tab,
      * otherwise the student's details and average grade per period.
@@ -245,28 +250,32 @@ class StudentController extends Controller
     public function exportProfile(Request $request, Student $student)
     {
         $grades = $request->query('tab') === 'grades';
-        $filename = 'student_' . $student->nim . ($grades ? '_grades' : '') . '.csv';
+        $filename = 'student_'.$student->nim.($grades ? '_grades' : '').'.csv';
+        $ids = array_values(array_filter((array) $request->input('ids', [])));
+        $search = $request->input('q');
 
-        $callback = function () use ($student, $grades) {
+        $callback = function () use ($student, $grades, $ids, $search) {
             $file = fopen('php://output', 'w');
 
             if ($grades) {
                 fputcsv($file, ['Period', 'Course ID', 'Course', 'Lecturer', 'SCU', 'Grade']);
 
-                $this->gradesQuery($student)->chunk(200, function ($rows) use ($file) {
-                    foreach ($rows as $row) {
-                        $record = $row->courseRecord;
+                $this->gradesQuery($student, $search)
+                    ->when($ids !== [], fn ($q) => $q->whereIn('student_grades.id', $ids))
+                    ->chunk(200, function ($rows) use ($file) {
+                        foreach ($rows as $row) {
+                            $record = $row->courseRecord;
 
-                        fputcsv($file, [
-                            $record->period?->period_name,
-                            $record->course?->course_code,
-                            $record->course?->course_name,
-                            $record->lecturer?->name,
-                            $record->course?->sks,
-                            $row->letter_grade,
-                        ]);
-                    }
-                });
+                            fputcsv($file, [
+                                $record->period?->period_name,
+                                $record->course?->course_code,
+                                $record->course?->course_name,
+                                $record->lecturer?->name,
+                                $record->course?->sks,
+                                $row->letter_grade,
+                            ]);
+                        }
+                    });
             } else {
                 $student->load('classGroup.batch');
 
@@ -291,18 +300,26 @@ class StudentController extends Controller
         };
 
         return response()->stream($callback, 200, [
-            'Content-Type'        => 'text/csv',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ]);
     }
 
-    private function gradesQuery(Student $student)
+    private function gradesQuery(Student $student, ?string $search = null)
     {
         return $student->grades()
             ->with(['courseRecord.course', 'courseRecord.lecturer', 'courseRecord.period'])
             ->join('course_records', 'student_grades.course_record_id', '=', 'course_records.id')
             ->join('periods', 'course_records.period_id', '=', 'periods.id')
             ->select('student_grades.*')
+            ->when(filled($search), fn ($query) => $query->where(function ($sub) use ($search) {
+                $sub->whereHas('courseRecord.course', function ($cq) use ($search) {
+                    $cq->where('course_name', 'like', "%{$search}%")
+                        ->orWhere('course_code', 'like', "%{$search}%");
+                })->orWhereHas('courseRecord.lecturer', function ($lq) use ($search) {
+                    $lq->where('name', 'like', "%{$search}%");
+                });
+            }))
             ->orderByDesc('periods.start_date');
     }
 
@@ -317,6 +334,7 @@ class StudentController extends Controller
             ->get(['periods.period_name as label', 'student_semester_gpas.gpa as value'])
             ->map(fn ($row) => ['label' => $row->label, 'value' => (float) $row->value]);
     }
+
     public function destroy(Student $student, AuditLogger $auditLogger)
     {
         DB::transaction(function () use ($student, $auditLogger) {
@@ -325,6 +343,7 @@ class StudentController extends Controller
             $auditLogger->record('DELETE', 'Student', $student->id, $snapshot, null);
             $student->delete();
         });
+
         return response()->json(null, 204);
     }
 }

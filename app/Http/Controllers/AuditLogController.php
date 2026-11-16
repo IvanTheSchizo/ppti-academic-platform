@@ -10,6 +10,48 @@ class AuditLogController extends Controller
 {
     public function index(Request $request)
     {
+        $query = $this->filteredAuditLogsQuery($request);
+
+        $transformLog = function ($log) {
+            $oldValue = $log->old_value;
+            $newValue = $log->new_value;
+
+            if (strtoupper((string) $log->action_type) === 'UPDATE') {
+                [$oldValue, $newValue] = $this->changedValues($log->old_value, $log->new_value);
+            }
+
+            return (object) [
+                'id' => $log->id,
+                'timestamp' => $log->created_at ? $log->created_at->format('Y-m-d H:i') : '-',
+                'admin' => $log->admin?->username ?? 'System',
+                'action' => $log->action_type,
+                'target_entity' => $log->target_entity,
+                'target_id' => $log->target_id,
+                'old_value' => $this->valueLines($oldValue),
+                'new_value' => $this->valueLines($newValue),
+            ];
+        };
+
+        $exportAuditLogs = (clone $query)->limit(500)->get()->map($transformLog);
+
+        // Pagination
+        $perPage = max((int) $request->input('per_page', 10), 1);
+        $auditLogs = $query->paginate($perPage)->withQueryString();
+        $auditLogs->getCollection()->transform($transformLog);
+
+        if ($request->wantsJson()) {
+            return response()->json($auditLogs);
+        }
+
+        // Distinct filter options directly from database
+        $actionOptions = AuditLog::pluck('action_type')->unique()->sort()->values();
+        $adminOptions = Admin::orderBy('username')->get(['id', 'username']);
+
+        return view('audit-logs.index', compact('auditLogs', 'exportAuditLogs', 'actionOptions', 'adminOptions'));
+    }
+
+    private function filteredAuditLogsQuery(Request $request)
+    {
         $query = AuditLog::with('admin');
 
         // 1. Search (Admin name/username, Target Entity, Target ID, Old/New values)
@@ -59,54 +101,23 @@ class AuditLogController extends Controller
             $query->orderBy('id', $direction);
         }
 
-        // 5. Pagination
-        $perPage = max((int) $request->input('per_page', 10), 1);
-        $auditLogs = $query->paginate($perPage)->withQueryString();
-
-        // 6. Presentation Transformation matching table.blade.php.
-        // For updates, display only fields whose values actually changed.
-        // For creates/deletes, retain the available full snapshot.
-        $auditLogs->getCollection()->transform(function ($log) {
-            $oldValue = $log->old_value;
-            $newValue = $log->new_value;
-
-            if (strtoupper((string) $log->action_type) === 'UPDATE') {
-                [$oldValue, $newValue] = $this->changedValues($log->old_value, $log->new_value);
-            }
-
-            return (object) [
-                'id'            => $log->id,
-                'timestamp'     => $log->created_at ? $log->created_at->format('Y-m-d H:i') : '-',
-                'admin'         => $log->admin?->username ?? 'System',
-                'action'        => $log->action_type,
-                'target_entity' => $log->target_entity,
-                'target_id'     => $log->target_id,
-                'old_value'     => $this->valueLines($oldValue),
-                'new_value'     => $this->valueLines($newValue),
-            ];
-        });
-
-        if ($request->wantsJson()) {
-            return response()->json($auditLogs);
-        }
-
-        // Distinct filter options directly from database
-        $actionOptions = AuditLog::pluck('action_type')->unique()->sort()->values();
-        $adminOptions = Admin::orderBy('username')->get(['id', 'username']);
-
-        return view('audit-logs.index', compact('auditLogs', 'actionOptions', 'adminOptions'));
+        return $query;
     }
 
-    public function export()
+    public function export(Request $request)
     {
-        $filename = 'audit_logs_' . now()->format('Ymd_His') . '.csv';
+        $filename = 'audit_logs_'.now()->format('Ymd_His').'.csv';
 
         $headers = [
-            'Content-Type'        => 'text/csv',
+            'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () {
+        $ids = array_values(array_filter((array) $request->input('ids', [])));
+        $query = $this->filteredAuditLogsQuery($request)
+            ->when($ids !== [], fn ($q) => $q->whereIn('audit_logs.id', $ids));
+
+        $callback = function () use ($query) {
             $handle = fopen('php://output', 'w');
 
             fputcsv($handle, [
@@ -119,28 +130,25 @@ class AuditLogController extends Controller
                 'New Value',
             ]);
 
-            AuditLog::with('admin')
-                ->latest('id')
-                ->chunk(200, function ($logs) use ($handle) {
-                    foreach ($logs as $log) {
-                        fputcsv($handle, [
-                            $log->created_at ? $log->created_at->format('Y-m-d H:i:s') : '-',
-                            $log->admin?->username ?? 'System',
-                            $log->action_type,
-                            $log->target_entity,
-                            $log->target_id,
-                            $log->old_value,
-                            $log->new_value,
-                        ]);
-                    }
-                });
+            $query->chunk(200, function ($logs) use ($handle) {
+                foreach ($logs as $log) {
+                    fputcsv($handle, [
+                        $log->created_at ? $log->created_at->format('Y-m-d H:i:s') : '-',
+                        $log->admin?->username ?? 'System',
+                        $log->action_type,
+                        $log->target_entity,
+                        $log->target_id,
+                        $log->old_value,
+                        $log->new_value,
+                    ]);
+                }
+            });
 
             fclose($handle);
         };
 
         return response()->stream($callback, 200, $headers);
     }
-
 
     /**
      * Return JSON snapshots containing only changed top-level attributes.
@@ -170,6 +178,7 @@ class AuditLogController extends Controller
 
             if ($oldHasKey && $newHasKey && is_array($oldItem) && is_array($newItem)) {
                 $this->collectChangedFields((string) $key, $oldItem, $newItem, $changedOld, $changedNew);
+
                 continue;
             }
 
@@ -223,7 +232,7 @@ class AuditLogController extends Controller
         foreach ($keys as $key) {
             $oldHasKey = array_key_exists($key, $old);
             $newHasKey = array_key_exists($key, $new);
-            $path = $prefix . '.' . $key;
+            $path = $prefix.'.'.$key;
             $oldItem = $old[$key] ?? null;
             $newItem = $new[$key] ?? null;
 
@@ -260,7 +269,7 @@ class AuditLogController extends Controller
         $lines = [];
 
         foreach ($decoded as $key => $item) {
-            $lines[] = $key . ': ' . (is_scalar($item) || $item === null ? (string) $item : json_encode($item));
+            $lines[] = $key.': '.(is_scalar($item) || $item === null ? (string) $item : json_encode($item));
         }
 
         return $lines;

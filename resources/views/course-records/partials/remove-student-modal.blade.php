@@ -12,7 +12,7 @@
                 <thead class="sticky top-0 z-10 bg-surface shadow-sm outline outline-1 outline-border">
                     <tr class="text-caption uppercase tracking-wide text-muted">
                         <th class="w-10 px-3 py-3 font-normal text-center">
-                            <input type="checkbox" id="modal-select-all-remove" class="rounded border-border text-danger focus:ring-danger">
+                            <input type="checkbox" id="modal-select-all-remove" class="size-4 shrink-0 cursor-pointer rounded border-border text-danger accent-danger focus:ring-danger">
                         </th>
                         <th class="px-3 py-3 font-normal">NIM</th>
                         <th class="px-3 py-3 font-normal">Name</th>
@@ -27,7 +27,7 @@
                                 data-search="{{ strtolower($student->nim . ' ' . $student->name) }}">
                                 <td class="px-3 py-3 text-center">
                                     <input type="checkbox" name="students[]" value="{{ $student->id }}" 
-                                        class="student-remove-cb rounded border-border text-danger focus:ring-danger">
+                                        class="student-remove-cb size-4 shrink-0 cursor-pointer rounded border-border text-danger accent-danger focus:ring-danger">
                                 </td>
                                 <td class="px-3 py-3 font-medium text-text">{{ $student->nim }}</td>
                                 <td class="px-3 py-3">{{ $student->name }}</td>
