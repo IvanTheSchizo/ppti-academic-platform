@@ -9,6 +9,7 @@ use App\Models\Lecturer;
 use App\Models\LecturerPerformance;
 use App\Models\Period;
 use App\Models\Student;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -179,7 +180,7 @@ class CourseRecordController extends Controller
     /**
      * Update a course record's course, period, class, lecturer and IKADQ.
      */
-    public function update(Request $request, CourseRecord $courseRecord)
+    public function update(Request $request, CourseRecord $courseRecord, AuditLogger $auditLogger)
     {
         $validated = $request->validate([
             'course_id' => 'required|exists:courses,id',
@@ -197,16 +198,35 @@ class CourseRecordController extends Controller
             'class_id.unique' => 'A course record for this course, period and class already exists.',
         ]);
 
-        DB::transaction(function () use ($courseRecord, $validated) {
+        DB::transaction(function () use ($courseRecord, $validated, $auditLogger) {
+            $fields = ['record_code', 'course_id', 'period_id', 'class_id', 'lecturer_id'];
+            $oldRecord = $auditLogger->snapshot($courseRecord, $fields);
+            $oldIkadq = $courseRecord->lecturerPerformance?->ikadq;
+
             $courseRecord->update(collect($validated)->only(['course_id', 'period_id', 'class_id', 'lecturer_id'])->all());
 
-            if (filled($validated['ikadq'] ?? null)) {
+            $newIkadq = filled($validated['ikadq'] ?? null) ? $validated['ikadq'] : null;
+
+            if ($newIkadq !== null) {
                 LecturerPerformance::updateOrCreate(
                     ['course_record_id' => $courseRecord->id],
-                    ['lecturer_id' => $validated['lecturer_id'], 'ikadq' => $validated['ikadq']],
+                    ['lecturer_id' => $validated['lecturer_id'], 'ikadq' => $newIkadq],
                 );
             } else {
                 LecturerPerformance::where('course_record_id', $courseRecord->id)->delete();
+            }
+
+            $courseRecord->refresh();
+            $newRecord = $auditLogger->snapshot($courseRecord, $fields);
+
+            if ($oldRecord !== $newRecord || (string) $oldIkadq !== (string) $newIkadq) {
+                $auditLogger->record(
+                    'UPDATE',
+                    'CourseRecord',
+                    $courseRecord->id,
+                    ['course_record' => $oldRecord, 'ikadq' => $oldIkadq],
+                    ['course_record' => $newRecord, 'ikadq' => $newIkadq]
+                );
             }
         });
 
@@ -216,7 +236,7 @@ class CourseRecordController extends Controller
     /**
      * Enroll multiple students in the course record via modal form.
      */
-    public function addStudent(Request $request, CourseRecord $courseRecord)
+    public function addStudent(Request $request, CourseRecord $courseRecord, AuditLogger $auditLogger)
     {
         $validated = $request->validate([
             'students' => 'required|array',
@@ -224,12 +244,21 @@ class CourseRecordController extends Controller
         ]);
 
         $addedCount = 0;
-        foreach ($validated['students'] as $studentId) {
-            $grade = $courseRecord->studentGrades()->firstOrCreate(['student_id' => $studentId]);
-            if ($grade->wasRecentlyCreated) {
-                $addedCount++;
+        DB::transaction(function () use ($validated, $courseRecord, $auditLogger, &$addedCount) {
+            foreach ($validated['students'] as $studentId) {
+                $grade = $courseRecord->studentGrades()->firstOrCreate(['student_id' => $studentId]);
+                if ($grade->wasRecentlyCreated) {
+                    $addedCount++;
+                    $auditLogger->record(
+                        'CREATE',
+                        'StudentGrade',
+                        $grade->id,
+                        null,
+                        $auditLogger->snapshot($grade, ['student_id', 'course_record_id', 'letter_grade', 'numeric_grade'])
+                    );
+                }
             }
-        }
+        });
 
         return redirect()->route('course-records.show', $courseRecord->id)
             ->with('success', "{$addedCount} student(s) added to the course record.");
@@ -238,9 +267,21 @@ class CourseRecordController extends Controller
     /**
      * Remove a student (and their grade) from the course record.
      */
-    public function removeStudent(CourseRecord $courseRecord, Student $student)
+    public function removeStudent(CourseRecord $courseRecord, Student $student, AuditLogger $auditLogger)
     {
-        $courseRecord->studentGrades()->where('student_id', $student->id)->delete();
+        DB::transaction(function () use ($courseRecord, $student, $auditLogger) {
+            $grades = $courseRecord->studentGrades()->where('student_id', $student->id)->get();
+            foreach ($grades as $grade) {
+                $auditLogger->record(
+                    'DELETE',
+                    'StudentGrade',
+                    $grade->id,
+                    $auditLogger->snapshot($grade, ['student_id', 'course_record_id', 'letter_grade', 'numeric_grade']),
+                    null
+                );
+                $grade->delete();
+            }
+        });
 
         return redirect()->route('course-records.show', $courseRecord->id)->with('success', 'Student removed from the course record.');
     }
@@ -248,16 +289,28 @@ class CourseRecordController extends Controller
     /**
      * Remove multiple students from the course record via modal form.
      */
-    public function removeStudents(Request $request, CourseRecord $courseRecord)
+    public function removeStudents(Request $request, CourseRecord $courseRecord, AuditLogger $auditLogger)
     {
         $validated = $request->validate([
             'students' => 'required|array',
             'students.*' => 'exists:students,id',
         ]);
 
-        $deletedCount = $courseRecord->studentGrades()
-            ->whereIn('student_id', $validated['students'])
-            ->delete();
+        $deletedCount = 0;
+        DB::transaction(function () use ($validated, $courseRecord, $auditLogger, &$deletedCount) {
+            $grades = $courseRecord->studentGrades()->whereIn('student_id', $validated['students'])->get();
+            foreach ($grades as $grade) {
+                $auditLogger->record(
+                    'DELETE',
+                    'StudentGrade',
+                    $grade->id,
+                    $auditLogger->snapshot($grade, ['student_id', 'course_record_id', 'letter_grade', 'numeric_grade']),
+                    null
+                );
+                $grade->delete();
+                $deletedCount++;
+            }
+        });
 
         return redirect()->route('course-records.show', $courseRecord->id)
             ->with('success', "{$deletedCount} student(s) removed from the course record.");

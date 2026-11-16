@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -13,7 +14,7 @@ class AuthController extends Controller
         return view('auth.login');
     }
 
-    public function login(Request $request)
+    public function login(Request $request, AuditLogger $auditLogger)
     {
         $credentials = $request->validate([
             'username' => ['required', 'string'],
@@ -22,6 +23,11 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
+
+            $admin = $request->user();
+            if ($admin) {
+                $auditLogger->record('LOGIN', 'Admin', $admin->id, null, ['username' => $admin->username]);
+            }
 
             return redirect()->intended(route('students.index'));
         }
@@ -33,8 +39,13 @@ class AuthController extends Controller
             ->onlyInput('username');
     }
 
-    public function logout(Request $request)
+    public function logout(Request $request, AuditLogger $auditLogger)
     {
+        $admin = $request->user();
+        if ($admin) {
+            $auditLogger->record('LOGOUT', 'Admin', $admin->id, ['username' => $admin->username], null);
+        }
+
         Auth::logout();
 
         $request->session()->invalidate();
@@ -48,7 +59,7 @@ class AuthController extends Controller
         return view('auth.change-password');
     }
 
-    public function updatePassword(Request $request)
+    public function updatePassword(Request $request, AuditLogger $auditLogger)
     {
         $data = $request->validate([
             'current_password' => ['required', 'string', 'current_password'],
@@ -66,7 +77,9 @@ class AuthController extends Controller
             'password.regex' => 'Password does not meet requirements.',
         ]);
 
-        $request->user()->forceFill(['password' => Hash::make($data['password'])])->save();
+        $admin = $request->user();
+        $admin->forceFill(['password' => Hash::make($data['password'])])->save();
+        $auditLogger->record('UPDATE_PASSWORD', 'Admin', $admin->id, null, ['username' => $admin->username]);
 
         return redirect()->route('students.index')->with('success', 'Password updated successfully.');
     }

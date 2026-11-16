@@ -14,7 +14,6 @@ use App\Models\StudentGrade;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 
 /**
  * Reads a CSV for one Input Data tab, validates each row and creates the records.
@@ -50,7 +49,7 @@ class InputDataImporter
     }
 
     /**
-     * @return array{rows: list<array<string, string>>, errors: list<string>}  rows are keyed by column and carry a "_line" number
+     * @return array{rows: list<array<string, string>>, errors: list<string>} rows are keyed by column and carry a "_line" number
      */
     public function parse(string $path, string $tab): array
     {
@@ -75,7 +74,7 @@ class InputDataImporter
         if ($missing !== []) {
             fclose($handle);
 
-            return ['rows' => [], 'errors' => ['Missing required column(s): ' . implode(', ', $missing) . '.']];
+            return ['rows' => [], 'errors' => ['Missing required column(s): '.implode(', ', $missing).'.']];
         }
 
         $rows = [];
@@ -90,7 +89,7 @@ class InputDataImporter
             }
 
             if (count($rows) >= self::MAX_ROWS) {
-                $errors[] = 'Only the first ' . self::MAX_ROWS . ' rows are read.';
+                $errors[] = 'Only the first '.self::MAX_ROWS.' rows are read.';
                 break;
             }
 
@@ -112,14 +111,14 @@ class InputDataImporter
     /**
      * Validate one row. $seen tracks the keys already used in this file.
      *
-     * @return array{0: array|null, 1: list<string>}  the data to create (null when invalid) and the error messages
+     * @return array{0: array|null, 1: list<string>} the data to create (null when invalid) and the error messages
      */
     public function process(string $tab, array $row, array &$seen): array
     {
-        $key = $tab . '|' . strtolower(implode('|', array_map(fn ($c) => $row[$c], self::KEY[$tab])));
+        $key = $tab.'|'.strtolower(implode('|', array_map(fn ($c) => $row[$c], self::KEY[$tab])));
 
         if (isset($seen[$key])) {
-            return [null, ['Duplicate of row ' . $seen[$key] . ' in this file.']];
+            return [null, ['Duplicate of row '.$seen[$key].' in this file.']];
         }
 
         $seen[$key] = $row['_line'];
@@ -140,8 +139,8 @@ class InputDataImporter
     {
         match ($tab) {
             'student' => $this->createStudent($data),
-            'lecturer' => Lecturer::create($data),
-            'course' => Course::create($data),
+            'lecturer' => $this->createLecturer($data),
+            'course' => $this->createCourse($data),
             'class' => $this->createClassGroup($data),
             'course-record' => $this->createCourseRecord($data),
             'grades' => $this->createGrade($data),
@@ -301,12 +300,22 @@ class InputDataImporter
     private function createStudent(array $data): void
     {
         DB::transaction(function () use ($data) {
+            $audit = app(AuditLogger::class);
+
             if (empty($data['class_id']) && ! empty($data['_batch_name']) && ! empty($data['_class_code'])) {
                 $batch = Batch::firstOrCreate(['batch_name' => $data['_batch_name']]);
+                if ($batch->wasRecentlyCreated) {
+                    $audit->record('CREATE', 'Batch', $batch->id, null, $audit->snapshot($batch, ['batch_name']));
+                }
+
                 $class = ClassGroup::firstOrCreate([
                     'batch_id' => $batch->id,
                     'class_code' => $data['_class_code'],
                 ]);
+                if ($class->wasRecentlyCreated) {
+                    $audit->record('CREATE', 'ClassGroup', $class->id, null, $audit->snapshot($class, ['batch_id', 'class_code']));
+                }
+
                 $data['class_id'] = $class->id;
             }
 
@@ -314,23 +323,49 @@ class InputDataImporter
             $data['cumulative_gpa'] = 0;
 
             $student = Student::create($data);
-            app(AuditLogger::class)->record('CREATE', 'Student', $student->id, null, app(AuditLogger::class)->snapshot($student, ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa']));
+            $audit->record('CREATE', 'Student', $student->id, null, $audit->snapshot($student, ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa']));
         });
+    }
+
+    private function createLecturer(array $data): void
+    {
+        $lecturer = Lecturer::create($data);
+        $audit = app(AuditLogger::class);
+        $audit->record('CREATE', 'Lecturer', $lecturer->id, null, $audit->snapshot($lecturer, [
+            'lecturer_code', 'name', 'jja', 'latest_education', 'status',
+            'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number',
+        ]));
+    }
+
+    private function createCourse(array $data): void
+    {
+        $course = Course::create($data);
+        $audit = app(AuditLogger::class);
+        $audit->record('CREATE', 'Course', $course->id, null, $audit->snapshot($course, ['course_code', 'course_name', 'sks']));
     }
 
     private function createClassGroup(array $data): void
     {
         DB::transaction(function () use ($data) {
+            $audit = app(AuditLogger::class);
+
             if (empty($data['batch_id']) && ! empty($data['_batch_name'])) {
                 $batch = Batch::firstOrCreate(['batch_name' => $data['_batch_name']]);
+                if ($batch->wasRecentlyCreated) {
+                    $audit->record('CREATE', 'Batch', $batch->id, null, $audit->snapshot($batch, ['batch_name']));
+                }
+
                 $data['batch_id'] = $batch->id;
             }
 
             unset($data['_batch_name'], $data['_notices']);
-            ClassGroup::firstOrCreate([
+            $classGroup = ClassGroup::firstOrCreate([
                 'batch_id' => $data['batch_id'],
                 'class_code' => $data['class_code'],
             ]);
+            if ($classGroup->wasRecentlyCreated) {
+                $audit->record('CREATE', 'ClassGroup', $classGroup->id, null, $audit->snapshot($classGroup, ['batch_id', 'class_code']));
+            }
         });
     }
 
@@ -371,7 +406,7 @@ class InputDataImporter
         $grade = strtoupper($row['grade']);
 
         if ($grade !== '' && ! array_key_exists($grade, StudentGrade::GRADE_POINTS)) {
-            $errors[] = 'Grade must be one of ' . implode(', ', array_keys(StudentGrade::GRADE_POINTS)) . '.';
+            $errors[] = 'Grade must be one of '.implode(', ', array_keys(StudentGrade::GRADE_POINTS)).'.';
         }
 
         return [$errors ? null : ['course_record_id' => $record->id, 'student_id' => $student->id, 'letter_grade' => $grade ?: null], $errors];
@@ -380,6 +415,7 @@ class InputDataImporter
     private function createCourseRecord(array $data): void
     {
         DB::transaction(function () use ($data) {
+            $audit = app(AuditLogger::class);
             $record = CourseRecord::create([
                 'course_id' => $data['course_id'], 'period_id' => $data['period_id'], 'class_id' => $data['class_id'],
                 'lecturer_id' => $data['lecturer_id'], 'record_code' => CourseRecord::nextCodeFor(Period::find($data['period_id'])),
@@ -389,8 +425,14 @@ class InputDataImporter
                 LecturerPerformance::create(['lecturer_id' => $data['lecturer_id'], 'course_record_id' => $record->id, 'ikadq' => $data['ikadq']]);
             }
 
+            $audit->record('CREATE', 'CourseRecord', $record->id, null, [
+                'course_record' => $audit->snapshot($record, ['record_code', 'course_id', 'period_id', 'class_id', 'lecturer_id']),
+                'ikadq' => $data['ikadq'],
+            ]);
+
             foreach ($data['students'] as $studentId) {
-                StudentGrade::create(['student_id' => $studentId, 'course_record_id' => $record->id]);
+                $grade = StudentGrade::create(['student_id' => $studentId, 'course_record_id' => $record->id]);
+                $audit->record('CREATE', 'StudentGrade', $grade->id, null, $audit->snapshot($grade, ['student_id', 'course_record_id', 'letter_grade', 'numeric_grade']));
             }
         });
     }
@@ -442,7 +484,7 @@ class InputDataImporter
 
         foreach (['Y-m-d', 'd/m/Y'] as $format) {
             try {
-                $date = Carbon::createFromFormat('!' . $format, $value);
+                $date = Carbon::createFromFormat('!'.$format, $value);
             } catch (\Throwable) {
                 continue;
             }
