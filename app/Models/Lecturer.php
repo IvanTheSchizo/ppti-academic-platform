@@ -25,7 +25,9 @@ class Lecturer extends Model
 
     public function photoUrl(): ?string
     {
-        return $this->photo_path ? route('lecturers.photo', $this) : null;
+        return $this->photo_path
+            ? route('lecturers.photo', ['lecturer' => $this, 'v' => substr(md5($this->photo_path), 0, 8)])
+            : null;
     }
 
     public function courseRecords()

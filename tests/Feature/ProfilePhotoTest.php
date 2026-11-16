@@ -66,6 +66,13 @@ class ProfilePhotoTest extends TestCase
         $student = $data['student']->fresh();
         $this->assertNotNull($student->photo_path);
         Storage::disk('local')->assertExists($student->photo_path);
+        $firstUrl = $student->photoUrl();
+
+        $replacementFile = UploadedFile::fake()->createWithContent('avatar2.png', $this->tinyPngBytes());
+        $this->post(route('students.photo.update', $student->id), ['photo' => $replacementFile])
+            ->assertRedirect();
+        $student = $student->fresh();
+        $this->assertNotSame($firstUrl, $student->photoUrl());
 
         $this->get(route('students.photo', $student->id))->assertOk();
         $this->assertDatabaseHas('audit_logs', [
@@ -130,6 +137,13 @@ class ProfilePhotoTest extends TestCase
         $student = $data['student']->fresh();
         $this->assertNotNull($student->photo_path);
         Storage::disk('local')->assertExists($student->photo_path);
+        $firstUrl = $student->photoUrl();
+
+        $replacementFile = UploadedFile::fake()->createWithContent('avatar2.png', $this->tinyPngBytes());
+        $this->post(route('students.photo.update', $student->id), ['photo' => $replacementFile])
+            ->assertRedirect();
+        $student = $student->fresh();
+        $this->assertNotSame($firstUrl, $student->photoUrl());
 
         @unlink($zipFile);
 

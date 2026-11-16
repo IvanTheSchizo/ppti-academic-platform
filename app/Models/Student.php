@@ -29,7 +29,9 @@ class Student extends Model
 
     public function photoUrl(): ?string
     {
-        return $this->photo_path ? route('students.photo', $this) : null;
+        return $this->photo_path
+            ? route('students.photo', ['student' => $this, 'v' => substr(md5($this->photo_path), 0, 8)])
+            : null;
     }
 
     public function semesterGpas()
