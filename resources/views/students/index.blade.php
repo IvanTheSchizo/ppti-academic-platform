@@ -6,6 +6,9 @@
     <div class="space-y-6">
         <x-ui.page-header title="Student List" divider>
             <x-slot:actions>
+                <x-ui.button type="button" variant="secondary" data-modal-open="#bulk-student-photo-modal">
+                    <x-ui.icon name="cloud_upload" /> Upload Photos
+                </x-ui.button>
                 <x-ui.button type="button" data-modal-open="#download-students-modal">
                     <x-ui.icon name="download" /> Download
                 </x-ui.button>
@@ -47,4 +50,13 @@
             </tr>
         @endforelse
     </x-ui.download-modal>
+
+    <x-ui.bulk-photo-modal
+        id="bulk-student-photo-modal"
+        title="Bulk Upload Student Photos"
+        :preview-url="route('students.photos.preview')"
+        :commit-url="route('students.photos.commit')"
+        example-filename="2700000001.jpg"
+        match-label="Student ID"
+    />
 @endsection

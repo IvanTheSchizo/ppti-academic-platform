@@ -6,6 +6,9 @@
     <div class="space-y-6">
         <x-ui.page-header title="Lecturer List" divider>
             <x-slot:actions>
+                <x-ui.button type="button" variant="secondary" data-modal-open="#bulk-lecturer-photo-modal">
+                    <x-ui.icon name="cloud_upload" /> Upload Photos
+                </x-ui.button>
                 <x-ui.button type="button" data-modal-open="#download-lecturers-modal">
                     <x-ui.icon name="download" /> Download
                 </x-ui.button>
@@ -44,4 +47,13 @@
             </tr>
         @endforelse
     </x-ui.download-modal>
+
+    <x-ui.bulk-photo-modal
+        id="bulk-lecturer-photo-modal"
+        title="Bulk Upload Lecturer Photos"
+        :preview-url="route('lecturers.photos.preview')"
+        :commit-url="route('lecturers.photos.commit')"
+        example-filename="D0001.jpg"
+        match-label="Lecturer Code"
+    />
 @endsection

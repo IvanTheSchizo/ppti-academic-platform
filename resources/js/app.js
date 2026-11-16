@@ -808,3 +808,232 @@ const initDownloadModal = (form) => {
 };
 
 document.querySelectorAll('[data-download-modal]').forEach(initDownloadModal);
+
+// Individual profile photo modal: live preview before upload.
+document.querySelectorAll('[data-photo-modal]').forEach((root) => {
+    const dialog = root.closest('dialog');
+    const input = root.querySelector('[data-photo-input]');
+    const preview = root.querySelector('[data-photo-preview]');
+    const placeholder = root.querySelector('[data-photo-placeholder]');
+    const filename = root.querySelector('[data-photo-filename]');
+    const submitBtn = dialog?.querySelector('[data-photo-submit]');
+    const originalSrc = preview?.getAttribute('src') || '';
+
+    const setSubmitEnabled = (enabled) => {
+        if (!submitBtn) {
+            return;
+        }
+
+        submitBtn.disabled = !enabled;
+        submitBtn.classList.toggle('pointer-events-none', !enabled);
+        submitBtn.classList.toggle('opacity-50', !enabled);
+    };
+
+    const reset = () => {
+        if (input) {
+            input.value = '';
+        }
+
+        if (filename) {
+            filename.hidden = true;
+            filename.textContent = '';
+        }
+
+        setSubmitEnabled(false);
+
+        if (preview && placeholder) {
+            preview.src = originalSrc;
+            preview.classList.toggle('hidden', !originalSrc);
+            placeholder.classList.toggle('hidden', Boolean(originalSrc));
+        }
+    };
+
+    input?.addEventListener('change', () => {
+        const file = input.files?.[0];
+
+        if (!file) {
+            reset();
+            return;
+        }
+
+        if (filename) {
+            filename.textContent = file.name;
+            filename.hidden = false;
+        }
+
+        setSubmitEnabled(true);
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            if (preview && placeholder) {
+                preview.src = String(event.target?.result || '');
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            }
+        };
+        reader.readAsDataURL(file);
+    });
+
+    dialog?.addEventListener('close', reset);
+});
+
+// Bulk photo upload modal: 2-step ZIP preview and commit.
+const initBulkPhotoUpload = (root) => {
+    const dialog = root.closest('dialog');
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
+    const input = root.querySelector('[data-bulk-file]');
+    const dropzone = root.querySelector('[data-bulk-dropzone]');
+    const filename = root.querySelector('[data-bulk-filename]');
+    const error = root.querySelector('[data-bulk-error]');
+    const steps = {
+        upload: root.querySelector('[data-bulk-step="upload"]'),
+        preview: root.querySelector('[data-bulk-step="preview"]'),
+    };
+    const footer = (name) => dialog.querySelector(`[data-bulk-${name}]`);
+    let token = null;
+
+    const setBusy = (button, busy) => {
+        button.disabled = busy;
+        button.classList.toggle('opacity-50', busy);
+    };
+
+    const showError = (message) => {
+        error.hidden = !message;
+        error.querySelector('div').textContent = message ?? '';
+    };
+
+    const showStep = (name) => {
+        steps.upload.hidden = name !== 'upload';
+        steps.preview.hidden = name !== 'preview';
+        footer('upload').hidden = name !== 'upload';
+        footer('back').hidden = name !== 'preview';
+        footer('commit').hidden = name !== 'preview';
+    };
+
+    const reset = () => {
+        input.value = '';
+        token = null;
+        filename.hidden = true;
+        setBusy(footer('upload'), true);
+        showError(null);
+        showStep('upload');
+    };
+
+    const chooseFile = (file) => {
+        filename.textContent = file ? file.name : '';
+        filename.hidden = !file;
+        setBusy(footer('upload'), !file);
+        showError(null);
+    };
+
+    input?.addEventListener('change', () => chooseFile(input.files[0]));
+
+    ['dragenter', 'dragover'].forEach((type) => dropzone?.addEventListener(type, (event) => {
+        event.preventDefault();
+        dropzone.dataset.dragging = '';
+    }));
+
+    ['dragleave', 'drop'].forEach((type) => dropzone?.addEventListener(type, (event) => {
+        event.preventDefault();
+        delete dropzone.dataset.dragging;
+    }));
+
+    dropzone?.addEventListener('drop', (event) => {
+        if (event.dataTransfer.files.length) {
+            input.files = event.dataTransfer.files;
+            chooseFile(input.files[0]);
+        }
+    });
+
+    const cell = (text, className = 'px-3 py-2') => {
+        const td = document.createElement('td');
+        td.className = className;
+        td.textContent = text;
+        return td;
+    };
+
+    const renderPreview = (data) => {
+        const body = root.querySelector('[data-bulk-body]');
+
+        body.replaceChildren(...data.rows.map((row) => {
+            const tr = document.createElement('tr');
+            const isSkipped = row.action === 'Skipped';
+
+            tr.append(cell(row.filename, 'px-3 py-2 whitespace-nowrap'));
+            tr.append(cell(row.code, 'px-3 py-2 font-medium whitespace-nowrap'));
+            tr.append(cell(row.matched_name || '-', 'px-3 py-2 whitespace-nowrap'));
+            tr.append(cell(row.status, `px-3 py-2 ${isSkipped ? 'text-danger' : 'text-success'}`));
+
+            return tr;
+        }));
+
+        const shown = data.rows.length < data.total ? ` Showing the first ${data.rows.length}.` : '';
+        root.querySelector('[data-bulk-summary]').textContent =
+            `${data.total} file${data.total === 1 ? '' : 's'} checked: ${data.valid} ready to upload, ${data.skipped} skipped.${shown}`;
+
+        footer('commit').textContent = `Upload ${data.valid} photo${data.valid === 1 ? '' : 's'}`;
+        setBusy(footer('commit'), data.valid === 0);
+    };
+
+    const post = async (url, body) => {
+        const response = await fetch(url, {
+            method: 'POST',
+            body,
+            headers: { Accept: 'application/json', 'X-CSRF-TOKEN': csrf },
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+            throw new Error(data.message ?? Object.values(data.errors ?? {}).flat()[0] ?? 'Something went wrong. Please try again.');
+        }
+
+        return data;
+    };
+
+    footer('upload').addEventListener('click', async () => {
+        if (!input.files[0]) {
+            return;
+        }
+
+        const form = new FormData();
+        form.append('file', input.files[0]);
+        setBusy(footer('upload'), true);
+        showError(null);
+
+        try {
+            const data = await post(root.dataset.previewUrl, form);
+            token = data.token;
+            renderPreview(data);
+            showStep('preview');
+        } catch (exception) {
+            showError(exception.message);
+        } finally {
+            setBusy(footer('upload'), !input.files[0]);
+        }
+    });
+
+    footer('back').addEventListener('click', () => {
+        showError(null);
+        showStep('upload');
+    });
+
+    footer('commit').addEventListener('click', async () => {
+        setBusy(footer('commit'), true);
+        showError(null);
+
+        try {
+            const form = new FormData();
+            form.append('token', token);
+            await post(root.dataset.commitUrl, form);
+            window.location.reload();
+        } catch (exception) {
+            showError(exception.message);
+            setBusy(footer('commit'), false);
+        }
+    });
+
+    dialog.addEventListener('close', reset);
+    reset();
+};
+
+document.querySelectorAll('[data-bulk-photo]').forEach(initBulkPhotoUpload);

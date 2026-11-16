@@ -19,12 +19,18 @@ class Student extends Model
         'phone_number',
         'date_of_birth',
         'cumulative_gpa',
+        'photo_path',
     ];
 
     protected $casts = [
         'cumulative_gpa' => 'decimal:2',
         'date_of_birth' => 'date',
     ];
+
+    public function photoUrl(): ?string
+    {
+        return $this->photo_path ? route('students.photo', $this) : null;
+    }
 
     public function semesterGpas()
     {

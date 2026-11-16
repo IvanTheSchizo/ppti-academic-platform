@@ -10,6 +10,7 @@ use App\Http\Controllers\InputDataController;
 use App\Http\Controllers\InputDataImportController;
 use App\Http\Controllers\LecturerController;
 use App\Http\Controllers\PeriodController;
+use App\Http\Controllers\ProfilePhotoController;
 use App\Http\Controllers\StudentController;
 use Illuminate\Support\Facades\Route;
 
@@ -47,13 +48,23 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/students', [StudentController::class, 'index'])->name('students.index');
     Route::get('/students/export', [StudentController::class, 'export'])->name('students.export');
+    Route::post('/students/photos/preview', [ProfilePhotoController::class, 'previewBulk'])->defaults('type', 'students')->name('students.photos.preview');
+    Route::post('/students/photos/commit', [ProfilePhotoController::class, 'commitBulk'])->defaults('type', 'students')->name('students.photos.commit');
     Route::get('/students/{student}', [StudentController::class, 'show'])->name('students.profile');
     Route::get('/students/{student}/export', [StudentController::class, 'exportProfile'])->name('students.profile.export');
+    Route::get('/students/{student}/photo', [ProfilePhotoController::class, 'showStudent'])->name('students.photo');
+    Route::post('/students/{student}/photo', [ProfilePhotoController::class, 'updateStudent'])->name('students.photo.update');
+    Route::delete('/students/{student}/photo', [ProfilePhotoController::class, 'destroyStudent'])->name('students.photo.destroy');
     Route::put('/students/{student}', [StudentController::class, 'update'])->name('students.update');
 
     Route::get('/lecturers/export', [LecturerController::class, 'export'])->name('lecturers.export');
+    Route::post('/lecturers/photos/preview', [ProfilePhotoController::class, 'previewBulk'])->defaults('type', 'lecturers')->name('lecturers.photos.preview');
+    Route::post('/lecturers/photos/commit', [ProfilePhotoController::class, 'commitBulk'])->defaults('type', 'lecturers')->name('lecturers.photos.commit');
     Route::get('/lecturers', [LecturerController::class, 'index'])->name('lecturers.index');
     Route::get('/lecturers/{lecturer}/export', [LecturerController::class, 'exportProfile'])->name('lecturers.profile.export');
+    Route::get('/lecturers/{lecturer}/photo', [ProfilePhotoController::class, 'showLecturer'])->name('lecturers.photo');
+    Route::post('/lecturers/{lecturer}/photo', [ProfilePhotoController::class, 'updateLecturer'])->name('lecturers.photo.update');
+    Route::delete('/lecturers/{lecturer}/photo', [ProfilePhotoController::class, 'destroyLecturer'])->name('lecturers.photo.destroy');
     Route::put('/lecturers/{lecturer}', [LecturerController::class, 'update'])->name('lecturers.update');
     Route::get('/lecturers/{lecturer}', [LecturerController::class, 'show'])->name('lecturers.profile');
 

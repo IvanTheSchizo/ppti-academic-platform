@@ -20,7 +20,13 @@ class Lecturer extends Model
         'latest_education',
         'status',
         'gender',
+        'photo_path',
     ];
+
+    public function photoUrl(): ?string
+    {
+        return $this->photo_path ? route('lecturers.photo', $this) : null;
+    }
 
     public function courseRecords()
     {

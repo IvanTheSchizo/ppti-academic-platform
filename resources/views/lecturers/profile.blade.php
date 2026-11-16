@@ -10,7 +10,18 @@
         ]" />
 
         <x-ui.page-header :title="$lecturer->name" :subtitle="$lecturer->lecturer_code">
-            <x-slot:media><x-ui.avatar /></x-slot:media>
+            <x-slot:media>
+                <button type="button"
+                        data-modal-open="#edit-lecturer-photo-modal"
+                        aria-label="Change profile photo"
+                        title="Change profile photo"
+                        class="group relative inline-flex cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                    <x-ui.avatar :src="$lecturer->photoUrl()" :alt="$lecturer->name" />
+                    <span class="absolute inset-0 flex items-center justify-center rounded-full bg-text/50 text-on-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                        <x-ui.icon name="pencil" class="size-5" />
+                    </span>
+                </button>
+            </x-slot:media>
             <x-slot:actions>
                 @if ($activeTab !== 'courses')
                     <x-ui.button variant="secondary" type="button" data-modal-open="#edit-lecturer-modal">
@@ -83,4 +94,13 @@
             @endforelse
         </x-ui.download-modal>
     @endif
+
+    <x-ui.photo-modal
+        id="edit-lecturer-photo-modal"
+        title="Lecturer Profile Photo"
+        :src="$lecturer->photoUrl()"
+        :alt="$lecturer->name"
+        :upload-action="route('lecturers.photo.update', $lecturer->id)"
+        :delete-action="route('lecturers.photo.destroy', $lecturer->id)"
+    />
 @endsection

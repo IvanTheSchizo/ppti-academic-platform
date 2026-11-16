@@ -7,6 +7,7 @@ use App\Models\ClassGroup;
 use App\Models\Period;
 use App\Models\Student;
 use App\Services\AuditLogger;
+use App\Services\ProfilePhotoService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -335,14 +336,18 @@ class StudentController extends Controller
             ->map(fn ($row) => ['label' => $row->label, 'value' => (float) $row->value]);
     }
 
-    public function destroy(Student $student, AuditLogger $auditLogger)
+    public function destroy(Student $student, AuditLogger $auditLogger, ProfilePhotoService $photos)
     {
+        $photoPath = $student->photo_path;
+
         DB::transaction(function () use ($student, $auditLogger) {
             $fields = ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa'];
             $snapshot = $auditLogger->snapshot($student, $fields);
             $auditLogger->record('DELETE', 'Student', $student->id, $snapshot, null);
             $student->delete();
         });
+
+        $photos->delete($photoPath);
 
         return response()->json(null, 204);
     }
