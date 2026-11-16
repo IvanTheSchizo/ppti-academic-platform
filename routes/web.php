@@ -14,6 +14,12 @@ use App\Http\Controllers\ProfilePhotoController;
 use App\Http\Controllers\StudentController;
 use Illuminate\Support\Facades\Route;
 
+Route::get('/', function () {
+    return auth()->check()
+        ? redirect()->route('students.index')
+        : redirect()->route('login');
+})->name('home');
+
 // ====================
 // Authentication
 // ====================
