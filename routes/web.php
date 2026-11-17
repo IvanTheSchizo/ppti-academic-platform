@@ -51,6 +51,10 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/password', [AuthController::class, 'editPassword'])->name('password.edit');
     Route::put('/password', [AuthController::class, 'updatePassword'])->name('password.update');
+    Route::put('/account/display-name', [AuthController::class, 'updateDisplayName'])->name('account.display-name.update');
+    Route::get('/account/photo', [ProfilePhotoController::class, 'showAdmin'])->name('account.photo');
+    Route::post('/account/photo', [ProfilePhotoController::class, 'updateAdmin'])->name('account.photo.update');
+    Route::delete('/account/photo', [ProfilePhotoController::class, 'destroyAdmin'])->name('account.photo.destroy');
 
     Route::get('/students', [StudentController::class, 'index'])->name('students.index');
     Route::get('/students/export', [StudentController::class, 'export'])->name('students.export');

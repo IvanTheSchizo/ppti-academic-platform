@@ -83,4 +83,29 @@ class AuthController extends Controller
 
         return redirect()->route('students.index')->with('success', 'Password updated successfully.');
     }
+
+    public function updateDisplayName(Request $request, AuditLogger $auditLogger)
+    {
+        $data = $request->validate([
+            'display_name' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $admin = $request->user();
+        $oldDisplayName = $admin->display_name;
+        $newDisplayName = isset($data['display_name']) ? trim($data['display_name']) : null;
+        $newDisplayName = $newDisplayName === '' ? null : $newDisplayName;
+
+        if ($oldDisplayName !== $newDisplayName) {
+            $admin->forceFill(['display_name' => $newDisplayName])->save();
+            $auditLogger->record(
+                'UPDATE',
+                'Admin',
+                $admin->id,
+                ['display_name' => $oldDisplayName],
+                ['display_name' => $newDisplayName]
+            );
+        }
+
+        return back()->with('success', 'Display name updated successfully.');
+    }
 }

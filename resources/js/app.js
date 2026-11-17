@@ -32,6 +32,7 @@ document.addEventListener('click', (event) => {
     const opener = event.target.closest('[data-modal-open]');
 
     if (opener) {
+        openDropdowns().forEach((dropdown) => dropdown.removeAttribute('open'));
         document.querySelector(opener.dataset.modalOpen)?.showModal();
         return;
     }
@@ -1037,3 +1038,56 @@ const initBulkPhotoUpload = (root) => {
 };
 
 document.querySelectorAll('[data-bulk-photo]').forEach(initBulkPhotoUpload);
+
+// Navbar live server clock & greeting (keeps server time synced using initial server timestamp offset).
+document.querySelectorAll('[data-server-clock]').forEach((clockEl) => {
+    const serverMs = Number(clockEl.dataset.serverTime);
+    const tz = clockEl.dataset.serverTz || 'Asia/Jakarta';
+    if (Number.isNaN(serverMs)) {
+        return;
+    }
+
+    const offsetMs = serverMs - Date.now();
+    const greetingEl = document.querySelector('[data-server-greeting]');
+    const adminName = greetingEl?.dataset.adminName || 'Admin';
+
+    const dateFmt = new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz,
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+    });
+
+    const timeFmt = new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+    });
+
+    const hourFmt = new Intl.DateTimeFormat('en-GB', {
+        timeZone: tz,
+        hour: '2-digit',
+        hour12: false,
+    });
+
+    const tick = () => {
+        const current = new Date(Date.now() + offsetMs);
+        clockEl.textContent = `${dateFmt.format(current)} · ${timeFmt.format(current)}`;
+
+        if (greetingEl) {
+            const hour = Number(hourFmt.format(current));
+            const greeting = hour >= 5 && hour < 12
+                ? 'Good morning'
+                : hour >= 12 && hour < 18
+                    ? 'Good afternoon'
+                    : 'Good evening';
+            greetingEl.textContent = `${greeting}, ${adminName}`;
+        }
+    };
+
+    tick();
+    setInterval(tick, 1000);
+});

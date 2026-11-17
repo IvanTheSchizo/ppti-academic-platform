@@ -166,4 +166,48 @@ class ProfilePhotoTest extends TestCase
 
         @unlink($lecturerZipFile);
     }
+
+    public function test_admin_can_update_display_name_and_profile_photo(): void
+    {
+        Storage::fake('local');
+        config(['filesystems.avatar_disk' => 'local']);
+
+        $data = $this->createFixtures();
+        $this->actingAs($data['admin']);
+
+        $this->put(route('account.display-name.update'), ['display_name' => 'Ivan Admin'])
+            ->assertRedirect();
+
+        $admin = $data['admin']->fresh();
+        $this->assertSame('Ivan Admin', $admin->display_name);
+        $this->assertSame('Ivan Admin', $admin->displayName());
+        $this->assertDatabaseHas('audit_logs', [
+            'action_type' => 'UPDATE',
+            'target_entity' => 'Admin',
+            'target_id' => $admin->id,
+        ]);
+
+        $file = UploadedFile::fake()->createWithContent('admin.png', $this->tinyPngBytes());
+        $this->post(route('account.photo.update'), ['photo' => $file])->assertRedirect();
+
+        $admin = $admin->fresh();
+        $this->assertNotNull($admin->photo_path);
+        Storage::disk('local')->assertExists($admin->photo_path);
+        $this->get(route('account.photo'))->assertOk();
+        $this->assertDatabaseHas('audit_logs', [
+            'action_type' => 'UPDATE_PHOTO',
+            'target_entity' => 'Admin',
+            'target_id' => $admin->id,
+        ]);
+
+        $oldPath = $admin->photo_path;
+        $this->delete(route('account.photo.destroy'))->assertRedirect();
+        $this->assertNull($admin->fresh()->photo_path);
+        Storage::disk('local')->assertMissing($oldPath);
+        $this->assertDatabaseHas('audit_logs', [
+            'action_type' => 'REMOVE_PHOTO',
+            'target_entity' => 'Admin',
+            'target_id' => $admin->id,
+        ]);
+    }
 }

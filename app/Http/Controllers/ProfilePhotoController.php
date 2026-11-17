@@ -86,6 +86,43 @@ class ProfilePhotoController extends Controller
         return back()->with('success', 'Profile photo removed.');
     }
 
+    public function showAdmin(Request $request): StreamedResponse
+    {
+        $admin = $request->user();
+        abort_unless($admin?->photo_path, 404);
+
+        return $this->photos->response($admin->photo_path);
+    }
+
+    public function updateAdmin(Request $request, AuditLogger $auditLogger): RedirectResponse
+    {
+        $request->validate([
+            'photo' => ['required', 'file', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+        ]);
+
+        $admin = $request->user();
+        $oldPath = $admin->photo_path;
+        $newPath = $this->photos->storeUploadedFile($request->file('photo'), 'admins', $admin->id, $oldPath);
+
+        $admin->forceFill(['photo_path' => $newPath])->save();
+        $auditLogger->record('UPDATE_PHOTO', 'Admin', $admin->id, ['photo_path' => $oldPath], ['photo_path' => $newPath]);
+
+        return back()->with('success', 'Profile photo updated successfully.');
+    }
+
+    public function destroyAdmin(Request $request, AuditLogger $auditLogger): RedirectResponse
+    {
+        $admin = $request->user();
+        if ($admin->photo_path) {
+            $oldPath = $admin->photo_path;
+            $this->photos->delete($oldPath);
+            $admin->forceFill(['photo_path' => null])->save();
+            $auditLogger->record('REMOVE_PHOTO', 'Admin', $admin->id, ['photo_path' => $oldPath], ['photo_path' => null]);
+        }
+
+        return back()->with('success', 'Profile photo removed.');
+    }
+
     public function previewBulk(Request $request, string $type): JsonResponse
     {
         $request->validate([
