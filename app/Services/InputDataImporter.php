@@ -49,14 +49,26 @@ class InputDataImporter
     }
 
     /**
+     * @param  string|resource  $source  Local file path or readable stream
      * @return array{rows: list<array<string, string>>, errors: list<string>} rows are keyed by column and carry a "_line" number
      */
-    public function parse(string $path, string $tab): array
+    public function parse(mixed $source, string $tab): array
     {
-        $handle = fopen($path, 'r');
+        if (is_resource($source)) {
+            $handle = fopen('php://temp', 'r+');
+            if (! $handle) {
+                return ['rows' => [], 'errors' => ['The file could not be read.']];
+            }
 
-        if (! $handle) {
-            return ['rows' => [], 'errors' => ['The file could not be read.']];
+            stream_copy_to_stream($source, $handle);
+            fclose($source);
+            rewind($handle);
+        } else {
+            $handle = @fopen((string) $source, 'r');
+
+            if (! $handle) {
+                return ['rows' => [], 'errors' => ['The file could not be read.']];
+            }
         }
 
         $firstLine = (string) fgets($handle);

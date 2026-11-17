@@ -11,9 +11,7 @@ class InputDataImportController extends Controller
 {
     private const PREVIEW_LIMIT = 200;
 
-    public function __construct(private InputDataImporter $importer)
-    {
-    }
+    public function __construct(private InputDataImporter $importer) {}
 
     /**
      * Store the uploaded CSV and return a row-by-row preview with validation results.
@@ -31,7 +29,10 @@ class InputDataImportController extends Controller
         $token = Str::random(40);
         $path = $request->file('file')->storeAs('imports', "{$tab}-{$token}.csv");
 
-        $parsed = $this->importer->parse(Storage::path($path), $tab);
+        $stream = Storage::readStream($path);
+        $parsed = $stream
+            ? $this->importer->parse($stream, $tab)
+            : ['rows' => [], 'errors' => ['The file could not be read.']];
 
         if ($parsed['rows'] === []) {
             Storage::delete($path);
@@ -86,7 +87,10 @@ class InputDataImportController extends Controller
 
         abort_unless(Storage::exists($path), 422, 'This upload has expired. Please upload the file again.');
 
-        $parsed = $this->importer->parse(Storage::path($path), $tab);
+        $stream = Storage::readStream($path);
+        $parsed = $stream
+            ? $this->importer->parse($stream, $tab)
+            : ['rows' => [], 'errors' => ['The file could not be read.']];
         $seen = [];
         $imported = 0;
 
@@ -102,7 +106,7 @@ class InputDataImportController extends Controller
         Storage::delete($path);
 
         $skipped = count($parsed['rows']) - $imported;
-        $message = "Imported {$imported} row" . ($imported === 1 ? '' : 's') . ($skipped ? ", skipped {$skipped} with errors." : '.');
+        $message = "Imported {$imported} row".($imported === 1 ? '' : 's').($skipped ? ", skipped {$skipped} with errors." : '.');
         session()->flash('success', $message);
 
         return response()->json(['imported' => $imported, 'skipped' => $skipped, 'message' => $message]);
@@ -115,7 +119,7 @@ class InputDataImportController extends Controller
     {
         $headers = $this->importer->columns($tab);
 
-        return response(implode(',', $headers) . "\n", 200, [
+        return response(implode(',', $headers)."\n", 200, [
             'Content-Type' => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$tab}_template.csv\"",
         ]);
