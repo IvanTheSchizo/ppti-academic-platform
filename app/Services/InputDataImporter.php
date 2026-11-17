@@ -25,7 +25,7 @@ class InputDataImporter
 
     /** tab => column => required? */
     public const COLUMNS = [
-        'student' => ['nim' => true, 'name' => true, 'class_code' => true, 'batch' => true, 'status' => false, 'gender' => false, 'email' => false, 'phone_number' => false, 'date_of_birth' => false],
+        'student' => ['nim' => true, 'name' => true, 'class_code' => true, 'batch' => true, 'status' => false, 'gender' => false, 'email' => false, 'phone_number' => false, 'date_of_birth' => false, 'cumulative_gpa' => false],
         'lecturer' => ['lecturer_code' => true, 'name' => true, 'jja' => false, 'latest_education' => false, 'status' => false, 'gender' => false, 'email_binus_edu' => false, 'email_binus_ac_id' => false, 'phone_number' => false],
         'course' => ['course_code' => true, 'course_name' => true, 'sks' => true],
         'class' => ['batch' => true, 'class_code' => true],
@@ -176,8 +176,13 @@ class InputDataImporter
         $errors = array_merge($errors, $dependencyValidator->errors()->all());
 
         $validator = Validator::make([
-            'nim' => $row['nim'], 'name' => $row['name'], 'status' => $row['status'] ?: 'Active',
-            'gender' => $this->nullable($row['gender']), 'email' => $this->nullable($row['email']), 'phone_number' => $this->nullable($row['phone_number']),
+            'nim' => $row['nim'],
+            'name' => $row['name'],
+            'status' => $row['status'] ?: 'Active',
+            'gender' => $this->nullable($row['gender']),
+            'email' => $this->nullable($row['email']),
+            'phone_number' => $this->nullable($row['phone_number']),
+            'cumulative_gpa' => $this->nullable($row['cumulative_gpa'] ?? ''),
         ], [
             'nim' => 'required|string|max:255|unique:students,nim',
             'name' => 'required|string|max:255',
@@ -185,6 +190,7 @@ class InputDataImporter
             'gender' => 'nullable|in:Male,Female',
             'email' => 'nullable|email|max:255',
             'phone_number' => 'nullable|string|max:30',
+            'cumulative_gpa' => 'nullable|numeric|between:0,4',
         ]);
 
         $errors = array_merge($errors, $validator->errors()->all());
@@ -332,7 +338,7 @@ class InputDataImporter
             }
 
             unset($data['_batch_name'], $data['_class_code'], $data['_notices']);
-            $data['cumulative_gpa'] = 0;
+            $data['cumulative_gpa'] = $data['cumulative_gpa'] !== null ? round((float) $data['cumulative_gpa'], 2) : 0;
 
             $student = Student::create($data);
             $audit->record('CREATE', 'Student', $student->id, null, $audit->snapshot($student, ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa']));

@@ -46,8 +46,8 @@ class CsvImportTest extends TestCase
             ->assertJsonPath('imported', 2)
             ->assertJsonPath('skipped', 0);
 
-        $this->assertDatabaseHas('students', ['nim' => '2602610001', 'name' => 'Wulan Anggraini']);
-        $this->assertDatabaseHas('students', ['nim' => '2602610069', 'name' => 'Vania Permata']);
+        $this->assertDatabaseHas('students', ['nim' => '2602610001', 'name' => 'Wulan Anggraini', 'cumulative_gpa' => 2.43]);
+        $this->assertDatabaseHas('students', ['nim' => '2602610069', 'name' => 'Vania Permata', 'cumulative_gpa' => 0]);
         $this->assertSame(2, Student::count());
     }
 }
