@@ -10,6 +10,7 @@
 @php
     $variants = [
         'primary' => 'bg-navy text-on-primary hover:bg-navy-hover active:bg-navy-active',
+        'accent' => 'bg-accent text-on-primary hover:bg-accent-hover active:bg-accent-active',
         'secondary' => 'border border-border bg-surface text-text hover:bg-page active:bg-border/50',
         'danger' => 'bg-danger text-on-primary hover:bg-danger-hover active:bg-danger-active',
         'ghost' => 'text-text hover:bg-page active:bg-border/50',

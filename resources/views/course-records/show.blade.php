@@ -14,7 +14,7 @@
                 <x-ui.button variant="secondary" type="button" data-modal-open="#edit-record-modal">
                     <x-ui.icon name="pencil" /> Edit
                 </x-ui.button>
-                <x-ui.button type="button" data-modal-open="#download-record-students-modal">
+                <x-ui.button type="button" variant="accent" data-modal-open="#download-record-students-modal">
                     <x-ui.icon name="download" /> Download
                 </x-ui.button>
             </x-slot:actions>

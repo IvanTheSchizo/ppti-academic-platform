@@ -27,11 +27,11 @@
                     <x-ui.button variant="secondary" type="button" data-modal-open="#edit-student-modal">
                         <x-ui.icon name="pencil" /> Edit
                     </x-ui.button>
-                    <x-ui.button type="button" :href="route('students.profile.export', [$student->id, 'tab' => $activeTab])">
+                    <x-ui.button type="button" variant="accent" :href="route('students.profile.export', [$student->id, 'tab' => $activeTab])">
                         <x-ui.icon name="download" /> Download
                     </x-ui.button>
                 @else
-                    <x-ui.button type="button" data-modal-open="#download-student-grades-modal">
+                    <x-ui.button type="button" variant="accent" data-modal-open="#download-student-grades-modal">
                         <x-ui.icon name="download" /> Download
                     </x-ui.button>
                 @endif

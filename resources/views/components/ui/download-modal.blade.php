@@ -51,7 +51,7 @@
             <span class="text-sm font-medium text-muted"><span data-download-count>0</span> selected</span>
             <div class="flex gap-3">
                 <x-ui.button type="button" variant="secondary" data-modal-close>Cancel</x-ui.button>
-                <x-ui.button type="submit" data-download-submit>
+                <x-ui.button type="submit" variant="accent" data-download-submit>
                     <x-ui.icon name="download" /> <span data-download-submit-label>Download 0 {{ $itemLabel }}s</span>
                 </x-ui.button>
             </div>

@@ -6,7 +6,7 @@
     <div class="space-y-6">
         <x-ui.page-header title="Audit Log" divider>
             <x-slot:actions>
-                <x-ui.button type="button" data-modal-open="#download-audit-logs-modal">
+                <x-ui.button type="button" variant="accent" data-modal-open="#download-audit-logs-modal">
                     <x-ui.icon name="download" /> Download
                 </x-ui.button>
             </x-slot:actions>

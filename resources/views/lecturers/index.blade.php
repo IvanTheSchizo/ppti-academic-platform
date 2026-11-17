@@ -9,7 +9,7 @@
                 <x-ui.button type="button" variant="secondary" data-modal-open="#bulk-lecturer-photo-modal">
                     <x-ui.icon name="cloud_upload" /> Upload Photos
                 </x-ui.button>
-                <x-ui.button type="button" data-modal-open="#download-lecturers-modal">
+                <x-ui.button type="button" variant="accent" data-modal-open="#download-lecturers-modal">
                     <x-ui.icon name="download" /> Download
                 </x-ui.button>
             </x-slot:actions>
