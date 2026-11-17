@@ -13,6 +13,10 @@ export default defineConfig({
                     weights: [400, 500, 600],
                     optimizedFallbacks: false,
                 }),
+                bunny('Plus Jakarta Sans', {
+                    weights: [600, 700],
+                    optimizedFallbacks: false,
+                }),
             ],
         }),
         tailwindcss(),
