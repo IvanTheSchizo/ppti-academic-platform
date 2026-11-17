@@ -49,5 +49,25 @@ class CsvImportTest extends TestCase
         $this->assertDatabaseHas('students', ['nim' => '2602610001', 'name' => 'Wulan Anggraini', 'cumulative_gpa' => 2.43]);
         $this->assertDatabaseHas('students', ['nim' => '2602610069', 'name' => 'Vania Permata', 'cumulative_gpa' => 0]);
         $this->assertSame(2, Student::count());
+
+        // Re-importing updates existing students (and preserves GPA when blank).
+        $updateCsv = implode("\n", [
+            'nim,name,class_code,batch,status,gender,email,phone_number,date_of_birth,cumulative_gpa',
+            '2602610001,Wulan Anggraini,11-A,PPTI18,Active,Male,wulan.anggraini.1@example.com,+628124866262,2001-12-07,',
+            '2602610069,Vania Permata,13-A,PPTI20,Graduated,Female,vania.permata.69@example.com,+628129048364,2005-06-19,3.75',
+        ]);
+
+        $updateFile = UploadedFile::fake()->createWithContent('students_update.csv', $updateCsv);
+        $updatePreview = $this->postJson(route('input-data.import.preview', 'student'), ['file' => $updateFile]);
+        $updatePreview->assertOk()->assertJsonPath('valid', 2)->assertJsonPath('invalid', 0);
+
+        $this->postJson(route('input-data.import.commit', 'student'), ['token' => $updatePreview->json('token')])
+            ->assertOk()
+            ->assertJsonPath('imported', 2);
+
+        $this->assertSame(2, Student::count());
+        $this->assertDatabaseHas('students', ['nim' => '2602610001', 'cumulative_gpa' => 2.43]);
+        $this->assertDatabaseHas('students', ['nim' => '2602610069', 'cumulative_gpa' => 3.75]);
+        $this->assertDatabaseHas('audit_logs', ['action_type' => 'UPDATE', 'target_entity' => 'Student']);
     }
 }

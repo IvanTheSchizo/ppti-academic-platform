@@ -163,6 +163,7 @@ class InputDataImporter
     {
         $errors = [];
         $notices = [];
+        $existing = $row['nim'] !== '' ? Student::where('nim', $row['nim'])->first() : null;
         $classId = $this->studentClassTarget($row['class_code'], $row['batch'], $errors, $notices);
         $dob = $this->date($row['date_of_birth'], $errors);
 
@@ -178,13 +179,13 @@ class InputDataImporter
         $validator = Validator::make([
             'nim' => $row['nim'],
             'name' => $row['name'],
-            'status' => $row['status'] ?: 'Active',
+            'status' => $row['status'] ?: ($existing?->status ?? 'Active'),
             'gender' => $this->nullable($row['gender']),
             'email' => $this->nullable($row['email']),
             'phone_number' => $this->nullable($row['phone_number']),
             'cumulative_gpa' => $this->nullable($row['cumulative_gpa'] ?? ''),
         ], [
-            'nim' => 'required|string|max:255|unique:students,nim',
+            'nim' => 'required|string|max:255',
             'name' => 'required|string|max:255',
             'status' => 'in:Active,Graduated,On Leave',
             'gender' => 'nullable|in:Male,Female',
@@ -197,6 +198,10 @@ class InputDataImporter
 
         if ($errors !== []) {
             return [null, $errors];
+        }
+
+        if ($existing) {
+            $notices[] = "Existing student \"{$row['nim']}\" will be updated.";
         }
 
         $data = $validator->validated() + ['class_id' => $classId, 'date_of_birth' => $dob];
@@ -338,10 +343,31 @@ class InputDataImporter
             }
 
             unset($data['_batch_name'], $data['_class_code'], $data['_notices']);
+
+            $fields = ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa'];
+            $existing = Student::where('nim', $data['nim'])->first();
+
+            if ($existing) {
+                $old = $audit->snapshot($existing, $fields);
+                $data['cumulative_gpa'] = $data['cumulative_gpa'] !== null
+                    ? round((float) $data['cumulative_gpa'], 2)
+                    : $existing->cumulative_gpa;
+
+                $existing->update($data);
+                $existing->refresh();
+                $new = $audit->snapshot($existing, $fields);
+
+                if ($old !== $new) {
+                    $audit->record('UPDATE', 'Student', $existing->id, $old, $new);
+                }
+
+                return;
+            }
+
             $data['cumulative_gpa'] = $data['cumulative_gpa'] !== null ? round((float) $data['cumulative_gpa'], 2) : 0;
 
             $student = Student::create($data);
-            $audit->record('CREATE', 'Student', $student->id, null, $audit->snapshot($student, ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa']));
+            $audit->record('CREATE', 'Student', $student->id, null, $audit->snapshot($student, $fields));
         });
     }
 
