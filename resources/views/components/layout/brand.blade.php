@@ -12,5 +12,5 @@
         <span class="{{ $compact ? 'hidden sm:block' : '' }} h-12 w-px shrink-0 bg-border" aria-hidden="true"></span>
     @endif
 
-    <span class="truncate font-brand font-bold uppercase tracking-wider text-text {{ $compact ? 'text-body sm:text-base' : 'text-base' }}">PPTI Academic Platform</span>
+    <span class="font-brand font-bold uppercase tracking-wider text-text {{ $compact ? 'truncate text-body sm:text-base' : 'leading-tight text-base' }}">PPTI Academic Platform</span>
 </{{ $tag }}>

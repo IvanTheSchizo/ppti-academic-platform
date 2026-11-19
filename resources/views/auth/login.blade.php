@@ -6,7 +6,7 @@
     <div class="rounded-xl bg-surface p-6 shadow-xl sm:p-10">
         <h1 class="sr-only">Admin Login</h1>
 
-        <x-layout.brand class="mb-6" />
+        <x-layout.brand class="mb-6 justify-center" />
 
         <form method="POST" action="{{ route('login.submit') }}" class="space-y-3">
             @csrf

@@ -11,7 +11,7 @@
 <body class="bg-primary font-sans antialiased">
     <x-ui.flash />
     <div class="flex min-h-screen items-center justify-center px-4">
-        <div class="w-full max-w-sm">
+        <div class="w-full max-w-md">
             @yield('content')
         </div>
     </div>
