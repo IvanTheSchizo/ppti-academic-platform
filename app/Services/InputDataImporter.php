@@ -14,6 +14,7 @@ use App\Models\StudentGrade;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 /**
  * Reads a CSV for one Input Data tab, validates each row and creates the records.
@@ -137,7 +138,7 @@ class InputDataImporter
 
         [$data, $errors] = match ($tab) {
             'student' => $this->student($row),
-            'lecturer' => $this->lecturer($row),
+            'lecturer' => $this->lecturer($row, $seen),
             'course' => $this->course($row),
             'class' => $this->classGroup($row),
             'course-record' => $this->courseRecord($row),
@@ -220,24 +221,73 @@ class InputDataImporter
         return [$data, []];
     }
 
-    private function lecturer(array $row): array
+    private function lecturer(array $row, array &$seen): array
     {
-        $input = array_map(fn ($v) => $this->nullable($v), array_diff_key($row, ['_line' => 1]));
-        $input['status'] = $row['status'] ?: 'Active';
+        $existing = $row['lecturer_code'] !== '' ? Lecturer::where('lecturer_code', $row['lecturer_code'])->first() : null;
+
+        if ($existing) {
+            $input = [
+                'lecturer_code' => $row['lecturer_code'],
+                'name' => $row['name'] !== '' ? $row['name'] : $existing->name,
+                'jja' => $row['jja'] !== '' ? $row['jja'] : $existing->jja,
+                'latest_education' => $row['latest_education'] !== '' ? $row['latest_education'] : $existing->latest_education,
+                'status' => $row['status'] !== '' ? $row['status'] : $existing->status,
+                'gender' => $row['gender'] !== '' ? $row['gender'] : $existing->gender,
+                'email_binus_edu' => $row['email_binus_edu'] !== '' ? $row['email_binus_edu'] : $existing->email_binus_edu,
+                'email_binus_ac_id' => $row['email_binus_ac_id'] !== '' ? $row['email_binus_ac_id'] : $existing->email_binus_ac_id,
+                'phone_number' => $row['phone_number'] !== '' ? $row['phone_number'] : $existing->phone_number,
+            ];
+        } else {
+            $input = array_map(fn ($v) => $this->nullable($v), array_diff_key($row, ['_line' => 1]));
+            $input['status'] = $row['status'] ?: 'Active';
+        }
 
         $validator = Validator::make($input, [
-            'lecturer_code' => 'required|string|max:20|unique:lecturers,lecturer_code',
+            'lecturer_code' => 'required|string|max:20',
             'name' => 'required|string|max:255',
             'jja' => 'nullable|string|max:100',
             'latest_education' => 'nullable|string|max:50',
             'status' => 'in:Active,Inactive',
             'gender' => 'nullable|in:Male,Female',
-            'email_binus_edu' => 'nullable|email|max:255|unique:lecturers,email_binus_edu',
-            'email_binus_ac_id' => 'nullable|email|max:255|unique:lecturers,email_binus_ac_id',
+            'email_binus_edu' => ['nullable', 'email', 'max:255', Rule::unique('lecturers', 'email_binus_edu')->ignore($existing?->id)],
+            'email_binus_ac_id' => ['nullable', 'email', 'max:255', Rule::unique('lecturers', 'email_binus_ac_id')->ignore($existing?->id)],
             'phone_number' => 'nullable|string|max:30',
         ]);
 
-        return [$validator->fails() ? null : $validator->validated(), $validator->errors()->all()];
+        $errors = $validator->errors()->all();
+
+        $emailFields = [
+            'email_binus_edu' => 'Email (binus.edu)',
+            'email_binus_ac_id' => 'Email (binus.ac.id)',
+        ];
+
+        foreach ($emailFields as $field => $label) {
+            if (! empty($input[$field])) {
+                $emailKey = "lecturer_{$field}|".strtolower((string) $input[$field]);
+                if (isset($seen[$emailKey])) {
+                    $errors[] = "{$label} duplicates row {$seen[$emailKey]} in this file.";
+                }
+            }
+        }
+
+        if ($errors !== []) {
+            return [null, $errors];
+        }
+
+        foreach (array_keys($emailFields) as $field) {
+            if (! empty($input[$field])) {
+                $emailKey = "lecturer_{$field}|".strtolower((string) $input[$field]);
+                $seen[$emailKey] = $row['_line'];
+            }
+        }
+
+        $data = $validator->validated();
+
+        if ($existing) {
+            $data['_notices'] = ["Existing lecturer \"{$row['lecturer_code']}\" will be updated."];
+        }
+
+        return [$data, []];
     }
 
     private function course(array $row): array
@@ -373,12 +423,41 @@ class InputDataImporter
 
     private function createLecturer(array $data): void
     {
-        $lecturer = Lecturer::create($data);
-        $audit = app(AuditLogger::class);
-        $audit->record('CREATE', 'Lecturer', $lecturer->id, null, $audit->snapshot($lecturer, [
-            'lecturer_code', 'name', 'jja', 'latest_education', 'status',
-            'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number',
-        ]));
+        DB::transaction(function () use ($data) {
+            $audit = app(AuditLogger::class);
+            $fields = [
+                'lecturer_code', 'name', 'jja', 'latest_education', 'status',
+                'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number',
+            ];
+
+            unset($data['_notices']);
+
+            $existing = Lecturer::where('lecturer_code', $data['lecturer_code'])->first();
+
+            if ($existing) {
+                $old = $audit->snapshot($existing, $fields);
+                $updateData = [];
+
+                foreach ($fields as $field) {
+                    if (array_key_exists($field, $data) && $data[$field] !== null && $data[$field] !== '') {
+                        $updateData[$field] = $data[$field];
+                    }
+                }
+
+                $existing->update($updateData);
+                $existing->refresh();
+                $new = $audit->snapshot($existing, $fields);
+
+                if ($old !== $new) {
+                    $audit->record('UPDATE', 'Lecturer', $existing->id, $old, $new);
+                }
+
+                return;
+            }
+
+            $lecturer = Lecturer::create($data);
+            $audit->record('CREATE', 'Lecturer', $lecturer->id, null, $audit->snapshot($lecturer, $fields));
+        });
     }
 
     private function createCourse(array $data): void

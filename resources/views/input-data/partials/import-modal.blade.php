@@ -29,6 +29,8 @@
                 <p class="text-body text-muted">For each student, include both <strong>batch</strong> and <strong>class_code</strong>. Missing batches and classes will be created automatically when you confirm the import; existing ones will be reused.</p>
             @elseif ($tab === 'class')
                 <p class="text-body text-muted">Missing batches will be created automatically when you confirm the import. Existing batches will be reused.</p>
+            @elseif ($tab === 'lecturer')
+                <p class="text-body text-muted">Existing lecturers matched by <strong>lecturer_code</strong> will be updated; blank cells retain their current values.</p>
             @endif
         </div>
 
