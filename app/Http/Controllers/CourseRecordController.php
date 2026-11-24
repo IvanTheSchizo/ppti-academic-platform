@@ -94,31 +94,31 @@ class CourseRecordController extends Controller
         }
 
         // 2. Period Filter
-        if ($request->filled('period')) {
-            $periodVal = $request->input('period');
-            $query->whereHas('period', fn ($pq) => $pq->where('period_name', $periodVal));
+        $selectedPeriods = $this->multiFilterValues($request, 'period');
+        if ($selectedPeriods !== []) {
+            $query->whereHas('period', fn ($pq) => $pq->whereIn('period_name', $selectedPeriods));
         }
 
         // 3. Class Group Filter
-        if ($request->filled('class')) {
-            $classVal = $request->input('class');
-            $query->whereHas('classGroup', function ($cgq) use ($classVal) {
-                $cgq->where('class_code', $classVal);
+        $selectedClasses = $this->multiFilterValues($request, 'class');
+        if ($selectedClasses !== []) {
+            $query->whereHas('classGroup', function ($cgq) use ($selectedClasses) {
+                $cgq->whereIn('class_code', $selectedClasses);
             });
         }
 
         // 4. Lecturer Filter
-        if ($request->filled('lecturer_code')) {
-            $lecturerCode = $request->input('lecturer_code');
-            $query->whereHas('lecturer', function ($lq) use ($lecturerCode) {
-                $lq->where('lecturer_code', $lecturerCode);
+        $selectedLecturers = $this->multiFilterValues($request, 'lecturer_code');
+        if ($selectedLecturers !== []) {
+            $query->whereHas('lecturer', function ($lq) use ($selectedLecturers) {
+                $lq->whereIn('lecturer_code', $selectedLecturers);
             });
         }
 
         // 5. Course Filter
-        if ($request->filled('course')) {
-            $courseCode = $request->input('course');
-            $query->whereHas('course', fn ($cq) => $cq->where('course_code', $courseCode));
+        $selectedCourses = $this->multiFilterValues($request, 'course');
+        if ($selectedCourses !== []) {
+            $query->whereHas('course', fn ($cq) => $cq->whereIn('course_code', $selectedCourses));
         }
 
         // 6. Dynamic Sorting

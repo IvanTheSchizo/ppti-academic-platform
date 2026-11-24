@@ -70,12 +70,14 @@ class AuditLogController extends Controller
         }
 
         // 2. Action Type Filter
-        if ($request->filled('action_type')) {
-            $query->where('action_type', $request->input('action_type'));
+        $selectedActions = $this->multiFilterValues($request, 'action_type');
+        if ($selectedActions !== []) {
+            $query->whereIn('action_type', $selectedActions);
         }
 
-        if ($request->filled('admin_id')) {
-            $query->where('admin_id', $request->input('admin_id'));
+        $selectedAdmins = $this->multiFilterValues($request, 'admin_id');
+        if ($selectedAdmins !== []) {
+            $query->whereIn('admin_id', $selectedAdmins);
         }
 
         if ($request->filled('date_from')) {
@@ -87,8 +89,9 @@ class AuditLogController extends Controller
         }
 
         // 3. Target Entity Filter
-        if ($request->filled('target_entity')) {
-            $query->where('target_entity', $request->input('target_entity'));
+        $selectedEntities = $this->multiFilterValues($request, 'target_entity');
+        if ($selectedEntities !== []) {
+            $query->whereIn('target_entity', $selectedEntities);
         }
 
         // 4. Dynamic Sorting

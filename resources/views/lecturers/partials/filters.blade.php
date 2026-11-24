@@ -1,10 +1,23 @@
 @php
-    $selectedBatches = array_values(array_filter(
-        (array) request()->query('batch', []),
-        fn ($value) => is_string($value) && trim($value) !== ''
+    $normalizeFilter = fn (string $key) => array_values(array_map(
+        'strval',
+        array_filter((array) request()->query($key, []), fn ($v) => is_scalar($v) && trim((string) $v) !== '')
     ));
+
+    $selectedStatuses = $normalizeFilter('status');
+    $selectedBatches = $normalizeFilter('batch');
+    $selectedJjas = $normalizeFilter('jja');
+    $selectedEducations = $normalizeFilter('latest_education');
+
+    $statusOptions = collect(['Active', 'Inactive'])->map(fn ($status) => ['value' => $status, 'label' => $status])->all();
     $batchOptions = $batches->map(fn ($batch) => ['value' => $batch->batch_name, 'label' => $batch->batch_name])->all();
-    $filtersOpen = $selectedBatches !== [] || collect(['status', 'jja', 'latest_education'])->contains(fn ($key) => filled(request()->query($key)));
+    $jjaSelectOptions = $jjaOptions->map(fn ($option) => ['value' => $option, 'label' => $option])->all();
+    $educationSelectOptions = $educationOptions->map(fn ($option) => ['value' => $option, 'label' => $option])->all();
+
+    $filtersOpen = $selectedStatuses !== []
+        || $selectedBatches !== []
+        || $selectedJjas !== []
+        || $selectedEducations !== [];
 @endphp
 
 <form method="GET" action="{{ route('lecturers.index') }}" data-autosubmit class="space-y-4">
@@ -28,13 +41,14 @@
 
     <div id="lecturer-filters" @unless ($filtersOpen) hidden @endunless class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-            <x-form.label for="status">Status</x-form.label>
-            <x-form.select name="status">
-                <option value="">All</option>
-                @foreach (['Active', 'Inactive'] as $option)
-                    <option value="{{ $option }}" @selected(request()->query('status') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Status</x-form.label>
+            <x-form.multi-select
+                name="status[]"
+                :options="$statusOptions"
+                :selected="$selectedStatuses"
+                placeholder="All"
+                :searchable="false"
+            />
         </div>
 
         <div>
@@ -50,23 +64,27 @@
         </div>
 
         <div>
-            <x-form.label for="jja">Rank (JJA)</x-form.label>
-            <x-form.select name="jja">
-                <option value="">All</option>
-                @foreach ($jjaOptions as $option)
-                    <option value="{{ $option }}" @selected(request()->query('jja') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Rank (JJA)</x-form.label>
+            <x-form.multi-select
+                name="jja[]"
+                :options="$jjaSelectOptions"
+                :selected="$selectedJjas"
+                placeholder="All"
+                search-placeholder="Search ranks..."
+                empty-message="No ranks available."
+            />
         </div>
 
         <div>
-            <x-form.label for="latest_education">Latest Education</x-form.label>
-            <x-form.select name="latest_education">
-                <option value="">All</option>
-                @foreach ($educationOptions as $option)
-                    <option value="{{ $option }}" @selected(request()->query('latest_education') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Latest Education</x-form.label>
+            <x-form.multi-select
+                name="latest_education[]"
+                :options="$educationSelectOptions"
+                :selected="$selectedEducations"
+                placeholder="All"
+                search-placeholder="Search education..."
+                empty-message="No education levels available."
+            />
         </div>
     </div>
 </form>

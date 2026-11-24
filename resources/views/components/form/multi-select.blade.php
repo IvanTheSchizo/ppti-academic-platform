@@ -5,18 +5,21 @@
     'placeholder' => 'Select options',
     'searchPlaceholder' => 'Filter...',
     'emptyMessage' => 'No options available.',
+    'searchable' => true,
+    'ariaLabel' => null,
 ])
 
 @php
     $selectedStrings = array_map('strval', $selected);
 @endphp
 
-<div data-multi-select>
+<div {{ $attributes }} data-multi-select>
     <details data-dropdown class="relative">
-        <summary class="flex min-h-control w-full cursor-pointer list-none items-center justify-between gap-2 rounded-ui border border-border bg-surface py-1.5 pl-3 pr-2 text-body transition-colors hover:border-muted focus-visible:border-primary focus-visible:outline-2 focus-visible:outline-primary/30 [&::-webkit-details-marker]:hidden">
+        <summary @if ($ariaLabel) aria-label="{{ $ariaLabel }}" @endif
+                 class="flex min-h-control w-full cursor-pointer list-none items-center justify-between gap-2 rounded-ui border border-border bg-surface py-1.5 pl-3 pr-2 text-body transition-colors hover:border-muted focus-visible:border-primary focus-visible:outline-2 focus-visible:outline-primary/30 [&::-webkit-details-marker]:hidden">
             <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
                 <span data-ms-placeholder class="truncate text-muted">{{ $placeholder }}</span>
-                <div data-ms-pills class="hidden flex-wrap items-center gap-1.5"></div>
+                <div data-ms-pills class="hidden max-w-full flex-wrap items-center gap-1.5"></div>
             </div>
             <x-ui.icon name="keyboard_arrow_down" class="size-5 shrink-0 text-text" />
         </summary>
@@ -25,13 +28,15 @@
             @if (empty($options))
                 <p class="px-3 py-3 text-body text-muted">{{ $emptyMessage }}</p>
             @else
-                <div class="border-b border-border p-2">
-                    <input type="search"
-                           data-ms-search
-                           placeholder="{{ $searchPlaceholder }}"
-                           autocomplete="off"
-                           class="h-8 w-full rounded-ui border border-border bg-page px-2.5 text-body text-text placeholder:text-muted focus:border-primary focus:bg-surface focus:outline-2 focus:outline-primary/30">
-                </div>
+                @if ($searchable)
+                    <div class="border-b border-border p-2">
+                        <input type="search"
+                               data-ms-search
+                               placeholder="{{ $searchPlaceholder }}"
+                               autocomplete="off"
+                               class="h-8 w-full rounded-ui border border-border bg-page px-2.5 text-body text-text placeholder:text-muted focus:border-primary focus:bg-surface focus:outline-2 focus:outline-primary/30">
+                    </div>
+                @endif
 
                 <div class="max-h-48 overflow-y-auto p-1.5">
                     @foreach ($options as $option)
@@ -43,13 +48,16 @@
                                    value="{{ $option['value'] }}"
                                    data-ms-checkbox
                                    data-label="{{ $option['label'] }}"
+                                   @if (isset($option['pillLabel'])) data-pill-label="{{ $option['pillLabel'] }}" @endif
                                    @checked(in_array((string) $option['value'], $selectedStrings, true))
                                    class="size-4 shrink-0 cursor-pointer rounded border-border text-primary accent-navy focus:ring-primary">
                             <span class="truncate">{{ $option['label'] }}</span>
                         </label>
                     @endforeach
 
-                    <p data-ms-no-match hidden class="px-2.5 py-3 text-center text-caption text-muted">No matching options.</p>
+                    @if ($searchable)
+                        <p data-ms-no-match hidden class="px-2.5 py-3 text-center text-caption text-muted">No matching options.</p>
+                    @endif
                 </div>
 
                 <div class="flex items-center justify-between border-t border-border bg-page/60 px-2.5 py-1.5 text-caption">

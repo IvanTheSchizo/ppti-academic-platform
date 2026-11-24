@@ -1106,6 +1106,33 @@ document.querySelectorAll('[data-server-clock]').forEach((clockEl) => {
     setInterval(tick, 1000);
 });
 
+// Track multi-select widgets per auto-submit form so switching between dropdowns submits once all settle.
+const multiSelectForms = new WeakMap();
+
+const registerMultiSelectForForm = (form, instance) => {
+    if (!form) {
+        return;
+    }
+
+    const list = multiSelectForms.get(form) ?? [];
+    list.push(instance);
+    multiSelectForms.set(form, list);
+};
+
+const submitAutosubmitFormIfSettled = (form) => {
+    if (!form || form.querySelector('[data-multi-select] details[open]')) {
+        return;
+    }
+
+    const instances = multiSelectForms.get(form) ?? [];
+    if (!instances.some((instance) => instance.isDirty())) {
+        return;
+    }
+
+    instances.forEach((instance) => instance.commit());
+    form.requestSubmit();
+};
+
 // Searchable multi-select dropdown with removable pills.
 const initMultiSelect = (root) => {
     const form = root.closest('form[data-autosubmit]');
@@ -1122,17 +1149,13 @@ const initMultiSelect = (root) => {
     const getSelectionKey = () => checkboxes.filter((cb) => cb.checked).map((cb) => cb.value).join('\0');
     let committedKey = getSelectionKey();
 
-    const submitIfChanged = () => {
-        if (!form) {
-            return;
-        }
-
-        const currentKey = getSelectionKey();
-        if (currentKey !== committedKey) {
-            committedKey = currentKey;
-            form.requestSubmit();
-        }
+    const instance = {
+        isDirty: () => getSelectionKey() !== committedKey,
+        commit: () => {
+            committedKey = getSelectionKey();
+        },
     };
+    registerMultiSelectForForm(form, instance);
 
     const sync = () => {
         const checked = checkboxes.filter((cb) => cb.checked);
@@ -1143,17 +1166,24 @@ const initMultiSelect = (root) => {
 
         if (pills) {
             pills.replaceChildren(...checked.map((cb) => {
+                const fullLabel = cb.dataset.label || cb.value;
+                const pillLabel = cb.dataset.pillLabel || fullLabel;
+
                 const pill = document.createElement('span');
-                pill.className = 'inline-flex items-center gap-1 rounded-ui border border-border bg-page px-2 py-0.5 text-caption font-medium text-text';
+                pill.className = 'inline-flex max-w-full items-center gap-1 rounded-ui border border-border bg-page px-2 py-0.5 text-caption font-medium text-text';
+                if (pillLabel !== fullLabel) {
+                    pill.title = fullLabel;
+                }
 
                 const text = document.createElement('span');
-                text.textContent = cb.dataset.label || cb.value;
+                text.className = 'truncate';
+                text.textContent = pillLabel;
 
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
                 removeBtn.dataset.msRemove = cb.value;
-                removeBtn.setAttribute('aria-label', `Remove ${cb.dataset.label || cb.value}`);
-                removeBtn.className = 'cursor-pointer rounded text-muted transition-colors hover:text-danger focus-visible:outline-2 focus-visible:outline-primary';
+                removeBtn.setAttribute('aria-label', `Remove ${fullLabel}`);
+                removeBtn.className = 'shrink-0 cursor-pointer rounded text-muted transition-colors hover:text-danger focus-visible:outline-2 focus-visible:outline-primary';
                 removeBtn.textContent = '×';
                 removeBtn.addEventListener('click', (event) => {
                     event.preventDefault();
@@ -1161,7 +1191,7 @@ const initMultiSelect = (root) => {
                     cb.checked = false;
                     sync();
                     if (!details?.open) {
-                        submitIfChanged();
+                        submitAutosubmitFormIfSettled(form);
                     }
                 });
 
@@ -1219,13 +1249,13 @@ const initMultiSelect = (root) => {
                 search.value = '';
                 filterOptions();
             }
-            submitIfChanged();
+            submitAutosubmitFormIfSettled(form);
         }
     });
 
     window.addEventListener('pageshow', () => {
         sync();
-        committedKey = getSelectionKey();
+        instance.commit();
     });
 
     sync();

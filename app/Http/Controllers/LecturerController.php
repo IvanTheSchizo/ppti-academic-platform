@@ -59,25 +59,24 @@ class LecturerController extends Controller
         }
 
         // 2. Filters
-        if ($request->filled('status')) {
-            $query->where('status', $request->input('status'));
+        $selectedStatuses = $this->multiFilterValues($request, 'status');
+        if ($selectedStatuses !== []) {
+            $query->whereIn('status', $selectedStatuses);
         }
 
-        $selectedBatches = array_values(array_filter(
-            (array) $request->input('batch', []),
-            fn ($value) => is_string($value) && trim($value) !== ''
-        ));
-
+        $selectedBatches = $this->multiFilterValues($request, 'batch');
         if ($selectedBatches !== []) {
             $query->whereHas('batches', fn ($bq) => $bq->whereIn('batch_name', $selectedBatches));
         }
 
-        if ($request->filled('jja')) {
-            $query->where('jja', $request->input('jja'));
+        $selectedJjas = $this->multiFilterValues($request, 'jja');
+        if ($selectedJjas !== []) {
+            $query->whereIn('jja', $selectedJjas);
         }
 
-        if ($request->filled('latest_education')) {
-            $query->where('latest_education', $request->input('latest_education'));
+        $selectedEducations = $this->multiFilterValues($request, 'latest_education');
+        if ($selectedEducations !== []) {
+            $query->whereIn('latest_education', $selectedEducations);
         }
 
         // 3. Dynamic Sorting

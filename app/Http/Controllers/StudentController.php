@@ -96,10 +96,7 @@ class StudentController extends Controller
         }
 
         // Batch Filter (supports single scalar or multi-select array)
-        $selectedBatches = array_values(array_filter(
-            (array) $request->input('batch', []),
-            fn ($value) => is_string($value) && trim($value) !== ''
-        ));
+        $selectedBatches = $this->multiFilterValues($request, 'batch');
 
         if ($selectedBatches !== []) {
             $query->whereHas('classGroup.batch', function ($q) use ($selectedBatches) {
@@ -108,15 +105,18 @@ class StudentController extends Controller
         }
 
         // Status Filter
-        if ($request->filled('status')) {
-            $query->where('students.status', $request->input('status'));
+        $selectedStatuses = $this->multiFilterValues($request, 'status');
+
+        if ($selectedStatuses !== []) {
+            $query->whereIn('students.status', $selectedStatuses);
         }
 
         // Class Code Filter
-        if ($request->filled('class')) {
-            $classCode = $request->input('class');
-            $query->whereHas('classGroup', function ($q) use ($classCode) {
-                $q->where('class_code', $classCode);
+        $selectedClasses = $this->multiFilterValues($request, 'class');
+
+        if ($selectedClasses !== []) {
+            $query->whereHas('classGroup', function ($q) use ($selectedClasses) {
+                $q->whereIn('class_code', $selectedClasses);
             });
         }
 

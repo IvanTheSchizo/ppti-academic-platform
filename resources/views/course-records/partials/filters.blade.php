@@ -1,5 +1,27 @@
 @php
-    $filtersOpen = collect(['period', 'class', 'lecturer_code', 'course'])->contains(fn ($key) => filled(request()->query($key)));
+    $normalizeFilter = fn (string $key) => array_values(array_map(
+        'strval',
+        array_filter((array) request()->query($key, []), fn ($v) => is_scalar($v) && trim((string) $v) !== '')
+    ));
+
+    $selectedPeriods = $normalizeFilter('period');
+    $selectedClasses = $normalizeFilter('class');
+    $selectedLecturers = $normalizeFilter('lecturer_code');
+    $selectedCourses = $normalizeFilter('course');
+
+    $periodSelectOptions = $periodOptions->map(fn ($option) => ['value' => $option, 'label' => $option])->all();
+    $classSelectOptions = $classOptions->map(fn ($option) => ['value' => $option, 'label' => $option])->all();
+    $lecturerSelectOptions = $lecturerOptions->map(fn ($option) => ['value' => $option, 'label' => $option])->all();
+    $courseSelectOptions = $courseOptions->map(fn ($option) => [
+        'value' => $option->course_code,
+        'label' => "{$option->course_code} — {$option->course_name}",
+        'pillLabel' => $option->course_code,
+    ])->all();
+
+    $filtersOpen = $selectedPeriods !== []
+        || $selectedClasses !== []
+        || $selectedLecturers !== []
+        || $selectedCourses !== [];
 @endphp
 
 <form method="GET" action="{{ route('course-records.index') }}" data-autosubmit class="space-y-6">
@@ -21,43 +43,51 @@
 
     <div id="course-record-filters" @unless ($filtersOpen) hidden @endunless class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-            <x-form.label for="period">Period</x-form.label>
-            <x-form.select name="period">
-                <option value="">All</option>
-                @foreach ($periodOptions as $option)
-                    <option value="{{ $option }}" @selected(request()->query('period') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Period</x-form.label>
+            <x-form.multi-select
+                name="period[]"
+                :options="$periodSelectOptions"
+                :selected="$selectedPeriods"
+                placeholder="All"
+                search-placeholder="Search periods..."
+                empty-message="No periods available."
+            />
         </div>
 
         <div>
-            <x-form.label for="class">Class</x-form.label>
-            <x-form.select name="class">
-                <option value="">All</option>
-                @foreach ($classOptions as $option)
-                    <option value="{{ $option }}" @selected(request()->query('class') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Class</x-form.label>
+            <x-form.multi-select
+                name="class[]"
+                :options="$classSelectOptions"
+                :selected="$selectedClasses"
+                placeholder="All"
+                search-placeholder="Search classes..."
+                empty-message="No classes available."
+            />
         </div>
 
         <div>
-            <x-form.label for="lecturer_code">Lecturer</x-form.label>
-            <x-form.select name="lecturer_code">
-                <option value="">All</option>
-                @foreach ($lecturerOptions as $option)
-                    <option value="{{ $option }}" @selected(request()->query('lecturer_code') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Lecturer</x-form.label>
+            <x-form.multi-select
+                name="lecturer_code[]"
+                :options="$lecturerSelectOptions"
+                :selected="$selectedLecturers"
+                placeholder="All"
+                search-placeholder="Search lecturers..."
+                empty-message="No lecturers available."
+            />
         </div>
 
         <div>
-            <x-form.label for="course">Course</x-form.label>
-            <x-form.select name="course">
-                <option value="">All</option>
-                @foreach ($courseOptions as $option)
-                    <option value="{{ $option->course_code }}" @selected(request()->query('course') === $option->course_code)>{{ $option->course_code }} — {{ $option->course_name }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Course</x-form.label>
+            <x-form.multi-select
+                name="course[]"
+                :options="$courseSelectOptions"
+                :selected="$selectedCourses"
+                placeholder="All"
+                search-placeholder="Search courses..."
+                empty-message="No courses available."
+            />
         </div>
     </div>
 </form>

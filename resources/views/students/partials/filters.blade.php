@@ -1,10 +1,21 @@
 @php
-    $selectedBatches = array_values(array_filter(
-        (array) request()->query('batch', []),
-        fn ($value) => is_string($value) && trim($value) !== ''
+    $normalizeFilter = fn (string $key) => array_values(array_map(
+        'strval',
+        array_filter((array) request()->query($key, []), fn ($v) => is_scalar($v) && trim((string) $v) !== '')
     ));
+
+    $selectedBatches = $normalizeFilter('batch');
+    $selectedStatuses = $normalizeFilter('status');
+    $selectedClasses = $normalizeFilter('class');
+
     $batchOptions = $batches->map(fn ($batch) => ['value' => $batch->batch_name, 'label' => $batch->batch_name])->all();
-    $filtersOpen = $selectedBatches !== [] || collect(['status', 'class', 'gpa_min', 'gpa_max'])->contains(fn ($key) => filled(request()->query($key)));
+    $statusOptions = collect(['Active', 'Graduated', 'On Leave'])->map(fn ($status) => ['value' => $status, 'label' => $status])->all();
+    $classOptions = $classes->map(fn ($classCode) => ['value' => $classCode, 'label' => $classCode])->all();
+
+    $filtersOpen = $selectedBatches !== []
+        || $selectedStatuses !== []
+        || $selectedClasses !== []
+        || collect(['gpa_min', 'gpa_max'])->contains(fn ($key) => filled(request()->query($key)));
 @endphp
 
 <form method="GET" action="{{ route('students.index') }}" data-autosubmit class="space-y-6">
@@ -30,23 +41,26 @@
         </div>
 
         <div>
-            <x-form.label for="status">Status</x-form.label>
-            <x-form.select name="status">
-                <option value="">All</option>
-                @foreach (['Active', 'Graduated', 'On Leave'] as $option)
-                    <option value="{{ $option }}" @selected(request()->query('status') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Status</x-form.label>
+            <x-form.multi-select
+                name="status[]"
+                :options="$statusOptions"
+                :selected="$selectedStatuses"
+                placeholder="All"
+                :searchable="false"
+            />
         </div>
 
         <div>
-            <x-form.label for="class">Class</x-form.label>
-            <x-form.select name="class">
-                <option value="">All</option>
-                @foreach ($classes as $option)
-                    <option value="{{ $option }}" @selected(request()->query('class') === $option)>{{ $option }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Class</x-form.label>
+            <x-form.multi-select
+                name="class[]"
+                :options="$classOptions"
+                :selected="$selectedClasses"
+                placeholder="All"
+                search-placeholder="Search classes..."
+                empty-message="No classes available."
+            />
         </div>
 
         <div>
