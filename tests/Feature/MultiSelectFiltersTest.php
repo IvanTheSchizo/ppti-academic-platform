@@ -63,6 +63,13 @@ class MultiSelectFiltersTest extends TestCase
 
         $statusResponse = $this->get(route('students.index', ['status' => ['Active', 'Graduated']]));
         $statusResponse->assertOk();
+        $statusResponse->assertViewHas('stats', [
+            'total' => 3,
+            'active' => 2,
+            'graduated' => 1,
+            'on_leave' => 0,
+            'dropout' => 0,
+        ]);
         $statusResponse->assertSee('Student Active A');
         $statusResponse->assertSee('Student Graduated B');
         $statusResponse->assertSee('Student Active C');
@@ -131,6 +138,11 @@ class MultiSelectFiltersTest extends TestCase
 
         $jjaResponse = $this->get(route('lecturers.index', ['jja' => ['Asisten Ahli', 'Guru Besar']]));
         $jjaResponse->assertOk();
+        $jjaResponse->assertViewHas('stats', [
+            'total' => 2,
+            'active' => 2,
+            'inactive' => 0,
+        ]);
         $jjaResponse->assertSee('Dr. One');
         $jjaResponse->assertSee('Dr. Three');
         $jjaResponse->assertDontSee('Dr. Two');

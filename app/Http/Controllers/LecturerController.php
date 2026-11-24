@@ -16,14 +16,14 @@ class LecturerController extends Controller
      */
     public function index(Request $request)
     {
-        $stats = [
-            'total' => Lecturer::count(),
-            'active' => Lecturer::where('status', 'Active')->count(),
-            'inactive' => Lecturer::where('status', 'Inactive')->count(),
-        ];
-
         $query = $this->filteredLecturersQuery($request);
         $exportLecturers = (clone $query)->get();
+
+        $stats = [
+            'total' => $exportLecturers->count(),
+            'active' => $exportLecturers->where('status', 'Active')->count(),
+            'inactive' => $exportLecturers->where('status', 'Inactive')->count(),
+        ];
 
         // Pagination (retaining all active query parameters)
         $perPage = max((int) $request->input('per_page', 10), 1);

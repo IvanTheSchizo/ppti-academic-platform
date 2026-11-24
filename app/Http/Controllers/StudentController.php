@@ -18,17 +18,17 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
-        // 1. Calculate Stat Bar Metrics
-        $stats = [
-            'total' => Student::count(),
-            'active' => Student::where('status', 'Active')->count(),
-            'graduated' => Student::where('status', 'Graduated')->count(),
-            'on_leave' => Student::where('status', 'On Leave')->count(),
-            'dropout' => Student::where('status', 'Dropout')->count(),
-        ];
-
         $query = $this->filteredStudentsQuery($request);
         $exportStudents = (clone $query)->get();
+
+        // Calculate Stat Bar Metrics for the active search/filters
+        $stats = [
+            'total' => $exportStudents->count(),
+            'active' => $exportStudents->where('status', 'Active')->count(),
+            'graduated' => $exportStudents->where('status', 'Graduated')->count(),
+            'on_leave' => $exportStudents->where('status', 'On Leave')->count(),
+            'dropout' => $exportStudents->where('status', 'Dropout')->count(),
+        ];
 
         // Paginate and Retain Active Query String
         $perPage = max((int) $request->input('per_page', 10), 1);
