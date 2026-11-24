@@ -127,6 +127,10 @@ document.addEventListener('change', (event) => {
         window.location.href = event.target.value;
     }
 
+    if (event.target.closest('[data-multi-select]')) {
+        return;
+    }
+
     event.target.closest('form[data-autosubmit]')?.requestSubmit();
 });
 
@@ -1104,6 +1108,7 @@ document.querySelectorAll('[data-server-clock]').forEach((clockEl) => {
 
 // Searchable multi-select dropdown with removable pills.
 const initMultiSelect = (root) => {
+    const form = root.closest('form[data-autosubmit]');
     const details = root.querySelector('details');
     const placeholderEl = root.querySelector('[data-ms-placeholder]');
     const search = root.querySelector('[data-ms-search]');
@@ -1113,6 +1118,21 @@ const initMultiSelect = (root) => {
     const pills = root.querySelector('[data-ms-pills]');
     const clearBtn = root.querySelector('[data-ms-clear]');
     const doneBtn = root.querySelector('[data-ms-done]');
+
+    const getSelectionKey = () => checkboxes.filter((cb) => cb.checked).map((cb) => cb.value).join('\0');
+    let committedKey = getSelectionKey();
+
+    const submitIfChanged = () => {
+        if (!form) {
+            return;
+        }
+
+        const currentKey = getSelectionKey();
+        if (currentKey !== committedKey) {
+            committedKey = currentKey;
+            form.requestSubmit();
+        }
+    };
 
     const sync = () => {
         const checked = checkboxes.filter((cb) => cb.checked);
@@ -1140,6 +1160,9 @@ const initMultiSelect = (root) => {
                     event.stopPropagation();
                     cb.checked = false;
                     sync();
+                    if (!details?.open) {
+                        submitIfChanged();
+                    }
                 });
 
                 pill.append(text, removeBtn);
@@ -1191,10 +1214,18 @@ const initMultiSelect = (root) => {
     details?.addEventListener('toggle', () => {
         if (details.open) {
             search?.focus();
-        } else if (search) {
-            search.value = '';
-            filterOptions();
+        } else {
+            if (search) {
+                search.value = '';
+                filterOptions();
+            }
+            submitIfChanged();
         }
+    });
+
+    window.addEventListener('pageshow', () => {
+        sync();
+        committedKey = getSelectionKey();
     });
 
     sync();

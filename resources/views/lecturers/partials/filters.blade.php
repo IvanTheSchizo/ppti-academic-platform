@@ -1,5 +1,10 @@
 @php
-    $filtersOpen = collect(['status', 'batch', 'jja', 'latest_education'])->contains(fn ($key) => filled(request()->query($key)));
+    $selectedBatches = array_values(array_filter(
+        (array) request()->query('batch', []),
+        fn ($value) => is_string($value) && trim($value) !== ''
+    ));
+    $batchOptions = $batches->map(fn ($batch) => ['value' => $batch->batch_name, 'label' => $batch->batch_name])->all();
+    $filtersOpen = $selectedBatches !== [] || collect(['status', 'jja', 'latest_education'])->contains(fn ($key) => filled(request()->query($key)));
 @endphp
 
 <form method="GET" action="{{ route('lecturers.index') }}" data-autosubmit class="space-y-4">
@@ -33,13 +38,15 @@
         </div>
 
         <div>
-            <x-form.label for="batch">Batch</x-form.label>
-            <x-form.select name="batch">
-                <option value="">All</option>
-                @foreach ($batches as $batch)
-                    <option value="{{ $batch->batch_name }}" @selected(request()->query('batch') === $batch->batch_name)>{{ $batch->batch_name }}</option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Batch</x-form.label>
+            <x-form.multi-select
+                name="batch[]"
+                :options="$batchOptions"
+                :selected="$selectedBatches"
+                placeholder="All"
+                search-placeholder="Search batches..."
+                empty-message="No batches available."
+            />
         </div>
 
         <div>

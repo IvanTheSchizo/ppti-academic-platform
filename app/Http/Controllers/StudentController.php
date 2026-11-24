@@ -95,11 +95,15 @@ class StudentController extends Controller
             });
         }
 
-        // Batch Filter
-        if ($request->filled('batch')) {
-            $batchName = $request->input('batch');
-            $query->whereHas('classGroup.batch', function ($q) use ($batchName) {
-                $q->where('batch_name', $batchName);
+        // Batch Filter (supports single scalar or multi-select array)
+        $selectedBatches = array_values(array_filter(
+            (array) $request->input('batch', []),
+            fn ($value) => is_string($value) && trim($value) !== ''
+        ));
+
+        if ($selectedBatches !== []) {
+            $query->whereHas('classGroup.batch', function ($q) use ($selectedBatches) {
+                $q->whereIn('batch_name', $selectedBatches);
             });
         }
 

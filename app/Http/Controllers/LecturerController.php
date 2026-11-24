@@ -63,9 +63,13 @@ class LecturerController extends Controller
             $query->where('status', $request->input('status'));
         }
 
-        if ($request->filled('batch')) {
-            $batchName = $request->input('batch');
-            $query->whereHas('batches', fn ($bq) => $bq->where('batch_name', $batchName));
+        $selectedBatches = array_values(array_filter(
+            (array) $request->input('batch', []),
+            fn ($value) => is_string($value) && trim($value) !== ''
+        ));
+
+        if ($selectedBatches !== []) {
+            $query->whereHas('batches', fn ($bq) => $bq->whereIn('batch_name', $selectedBatches));
         }
 
         if ($request->filled('jja')) {

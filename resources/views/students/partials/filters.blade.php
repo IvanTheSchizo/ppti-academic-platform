@@ -1,5 +1,10 @@
 @php
-    $filtersOpen = collect(['batch', 'status', 'class', 'gpa_min', 'gpa_max'])->contains(fn ($key) => filled(request()->query($key)));
+    $selectedBatches = array_values(array_filter(
+        (array) request()->query('batch', []),
+        fn ($value) => is_string($value) && trim($value) !== ''
+    ));
+    $batchOptions = $batches->map(fn ($batch) => ['value' => $batch->batch_name, 'label' => $batch->batch_name])->all();
+    $filtersOpen = $selectedBatches !== [] || collect(['status', 'class', 'gpa_min', 'gpa_max'])->contains(fn ($key) => filled(request()->query($key)));
 @endphp
 
 <form method="GET" action="{{ route('students.index') }}" data-autosubmit class="space-y-6">
@@ -13,15 +18,15 @@
 
     <div id="student-filters" @unless ($filtersOpen) hidden @endunless class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-            <x-form.label for="batch">Batch</x-form.label>
-            <x-form.select name="batch">
-                <option value="">All</option>
-                @foreach ($batches as $option)
-                    <option value="{{ $option->batch_name }}" @selected(request()->query('batch') === $option->batch_name)>
-                        {{ $option->batch_name }}
-                    </option>
-                @endforeach
-            </x-form.select>
+            <x-form.label>Batch</x-form.label>
+            <x-form.multi-select
+                name="batch[]"
+                :options="$batchOptions"
+                :selected="$selectedBatches"
+                placeholder="All"
+                search-placeholder="Search batches..."
+                empty-message="No batches available."
+            />
         </div>
 
         <div>
