@@ -24,18 +24,20 @@
         id="download-lecturers-modal"
         title="Download Lecturers"
         :action="route('lecturers.export')"
-        :columns="['Lecturer Code', 'Name', 'Email', 'Status']"
-        search-placeholder="Search by name, code, or email"
+        :columns="['Batch', 'Lecturer Code', 'Name', 'Email', 'Status']"
+        search-placeholder="Search by name, code, batch, or email"
         item-label="lecturer"
     >
         @forelse ($exportLecturers as $lecturer)
             @php
-                $searchString = strtolower($lecturer->lecturer_code . ' ' . $lecturer->name . ' ' . ($lecturer->email_binus_edu ?? '') . ' ' . $lecturer->status);
+                $batchesText = $lecturer->batchLabels();
+                $searchString = strtolower($lecturer->lecturer_code . ' ' . $lecturer->name . ' ' . $batchesText . ' ' . ($lecturer->email_binus_edu ?? '') . ' ' . $lecturer->status);
             @endphp
             <tr data-download-row data-search="{{ $searchString }}" class="cursor-pointer transition-colors hover:bg-page">
                 <td class="px-3 py-3 text-center">
                     <input type="checkbox" name="ids[]" value="{{ $lecturer->id }}" data-download-cb class="size-4 shrink-0 cursor-pointer rounded border-border text-primary accent-navy focus:ring-primary">
                 </td>
+                <td class="px-3 py-3">{{ $batchesText }}</td>
                 <td class="px-3 py-3 font-medium text-text">{{ $lecturer->lecturer_code }}</td>
                 <td class="px-3 py-3">{{ $lecturer->name }}</td>
                 <td class="px-3 py-3">{{ $lecturer->email_binus_edu ?? '-' }}</td>
@@ -43,7 +45,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="5" class="p-6 text-center text-muted">No lecturers found to download.</td>
+                <td colspan="6" class="p-6 text-center text-muted">No lecturers found to download.</td>
             </tr>
         @endforelse
     </x-ui.download-modal>

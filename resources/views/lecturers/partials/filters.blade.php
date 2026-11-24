@@ -1,5 +1,5 @@
 @php
-    $filtersOpen = collect(['status', 'jja', 'latest_education'])->contains(fn ($key) => filled(request()->query($key)));
+    $filtersOpen = collect(['status', 'batch', 'jja', 'latest_education'])->contains(fn ($key) => filled(request()->query($key)));
 @endphp
 
 <form method="GET" action="{{ route('lecturers.index') }}" data-autosubmit class="space-y-4">
@@ -21,13 +21,23 @@
         </div>
     </div>
 
-    <div id="lecturer-filters" @unless ($filtersOpen) hidden @endunless class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div id="lecturer-filters" @unless ($filtersOpen) hidden @endunless class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
             <x-form.label for="status">Status</x-form.label>
             <x-form.select name="status">
                 <option value="">All</option>
                 @foreach (['Active', 'Inactive'] as $option)
                     <option value="{{ $option }}" @selected(request()->query('status') === $option)>{{ $option }}</option>
+                @endforeach
+            </x-form.select>
+        </div>
+
+        <div>
+            <x-form.label for="batch">Batch</x-form.label>
+            <x-form.select name="batch">
+                <option value="">All</option>
+                @foreach ($batches as $batch)
+                    <option value="{{ $batch->batch_name }}" @selected(request()->query('batch') === $batch->batch_name)>{{ $batch->batch_name }}</option>
                 @endforeach
             </x-form.select>
         </div>

@@ -2,6 +2,8 @@
     <x-ui.card title="Academic Info" icon="work">
         <x-ui.detail-list>
             <x-ui.detail label="Lecturer Code">{{ $lecturer->lecturer_code }}</x-ui.detail>
+            <x-ui.detail label="Batch">{{ $lecturer->batchLabels() }}</x-ui.detail>
+            <x-ui.detail label="Job Start Date">{{ $lecturer->job_start_date?->format('j F Y') ?? '-' }}</x-ui.detail>
             <x-ui.detail label="Key Performance Index">{{ $kpi !== null ? number_format($kpi, 2) : '-' }}</x-ui.detail>
             <x-ui.detail label="Academic Functional Rank">{{ $lecturer->jja }}</x-ui.detail>
             <x-ui.detail label="Latest Education">{{ $lecturer->latest_education }}</x-ui.detail>

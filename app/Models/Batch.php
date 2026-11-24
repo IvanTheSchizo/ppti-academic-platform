@@ -17,4 +17,9 @@ class Batch extends Model
     {
         return $this->hasMany(ClassGroup::class);
     }
+
+    public function lecturers()
+    {
+        return $this->belongsToMany(Lecturer::class);
+    }
 }

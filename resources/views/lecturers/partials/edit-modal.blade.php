@@ -1,4 +1,9 @@
-{{-- Edit Lecturer modal (profile page only). Expects $lecturer. --}}
+{{-- Edit Lecturer modal (profile page only). Expects $lecturer and $batches. --}}
+@php
+    $selectedBatchIds = array_map('intval', old('batch_ids', $lecturer->batches->pluck('id')->all()));
+    $batchOptions = $batches->map(fn ($batch) => ['value' => $batch->id, 'label' => $batch->batch_name])->all();
+@endphp
+
 <x-ui.modal id="edit-lecturer-modal" title="Edit Lecturer" size="lg">
     <form method="POST" action="{{ route('lecturers.update', $lecturer->id) }}" class="space-y-5">
         @csrf
@@ -36,6 +41,19 @@
                         <option value="{{ $gender }}" @selected(old('gender', $lecturer->gender) === $gender)>{{ $gender }}</option>
                     @endforeach
                 </x-form.select>
+            </x-form.field>
+            <x-form.field name="job_start_date" label="Job Start Date">
+                <x-form.text-input type="date" name="job_start_date" :value="old('job_start_date', $lecturer->job_start_date?->format('Y-m-d'))" />
+            </x-form.field>
+            <x-form.field name="batch_ids" label="Batch">
+                <x-form.multi-select
+                    name="batch_ids[]"
+                    :options="$batchOptions"
+                    :selected="$selectedBatchIds"
+                    placeholder="Select Batches"
+                    search-placeholder="Search batches..."
+                    empty-message="No batches available yet."
+                />
             </x-form.field>
             <x-form.field name="email_binus_edu" label="Email 1">
                 <x-form.text-input name="email_binus_edu" type="email" :value="old('email_binus_edu', $lecturer->email_binus_edu)" maxlength="255" autocomplete="email" />

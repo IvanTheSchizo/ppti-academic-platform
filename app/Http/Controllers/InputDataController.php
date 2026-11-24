@@ -46,6 +46,7 @@ class InputDataController extends Controller
                 'classGroups' => ClassGroup::orderBy('class_code')->get(),
                 'periods' => Period::orderBy('start_date')->get(['id', 'period_name']),
             ],
+            'lecturer' => ['batches' => $this->batches()],
             'class' => ['batches' => $this->batches()],
             'course-record' => [
                 'courses' => Course::orderBy('course_code')->get(),
@@ -201,13 +202,25 @@ class InputDataController extends Controller
             'email_binus_edu' => 'nullable|email|max:255|unique:lecturers,email_binus_edu',
             'email_binus_ac_id' => 'nullable|email|max:255|unique:lecturers,email_binus_ac_id',
             'phone_number' => 'nullable|string|max:30',
+            'job_start_date' => 'nullable|date',
+            'batch_ids' => 'nullable|array',
+            'batch_ids.*' => 'exists:batches,id',
         ]);
 
-        $lecturer = Lecturer::create($validated);
-        $auditLogger->record('CREATE', 'Lecturer', $lecturer->id, null, $auditLogger->snapshot($lecturer, [
-            'lecturer_code', 'name', 'jja', 'latest_education', 'status',
-            'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number',
-        ]));
+        DB::transaction(function () use ($validated, $auditLogger) {
+            $lecturer = Lecturer::create(collect($validated)->except('batch_ids')->all());
+            $lecturer->batches()->sync($validated['batch_ids'] ?? []);
+            $lecturer->load('batches');
+
+            $snapshot = $auditLogger->snapshot($lecturer, [
+                'lecturer_code', 'name', 'jja', 'latest_education', 'status',
+                'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number', 'job_start_date',
+            ]);
+            $snapshot['job_start_date'] = $lecturer->job_start_date?->toDateString();
+            $snapshot['batches'] = implode(', ', $lecturer->sortedBatchNames()) ?: null;
+
+            $auditLogger->record('CREATE', 'Lecturer', $lecturer->id, null, $snapshot);
+        });
 
         return 'Lecturer added successfully.';
     }

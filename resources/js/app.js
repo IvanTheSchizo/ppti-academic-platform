@@ -59,11 +59,21 @@ document.addEventListener('keydown', (event) => {
 
     setSidebar(false);
 
-    openDropdowns().forEach((dropdown) => {
-        dropdown.removeAttribute('open');
-        dropdown.querySelector('summary')?.focus();
-    });
+    const dropdowns = openDropdowns();
+    if (dropdowns.length > 0) {
+        event.preventDefault();
+        dropdowns.forEach((dropdown) => {
+            dropdown.removeAttribute('open');
+            dropdown.querySelector('summary')?.focus();
+        });
+    }
 });
+
+document.addEventListener('cancel', (event) => {
+    if (event.target instanceof HTMLDialogElement && event.target.querySelector('details[data-dropdown][open]')) {
+        event.preventDefault();
+    }
+}, true);
 
 window.addEventListener('resize', () => {
     if (window.innerWidth >= 1024) {
@@ -1091,3 +1101,103 @@ document.querySelectorAll('[data-server-clock]').forEach((clockEl) => {
     tick();
     setInterval(tick, 1000);
 });
+
+// Searchable multi-select dropdown with removable pills.
+const initMultiSelect = (root) => {
+    const details = root.querySelector('details');
+    const placeholderEl = root.querySelector('[data-ms-placeholder]');
+    const search = root.querySelector('[data-ms-search]');
+    const options = [...root.querySelectorAll('[data-ms-option]')];
+    const noMatch = root.querySelector('[data-ms-no-match]');
+    const checkboxes = [...root.querySelectorAll('[data-ms-checkbox]')];
+    const pills = root.querySelector('[data-ms-pills]');
+    const clearBtn = root.querySelector('[data-ms-clear]');
+    const doneBtn = root.querySelector('[data-ms-done]');
+
+    const sync = () => {
+        const checked = checkboxes.filter((cb) => cb.checked);
+
+        if (placeholderEl) {
+            placeholderEl.classList.toggle('hidden', checked.length > 0);
+        }
+
+        if (pills) {
+            pills.replaceChildren(...checked.map((cb) => {
+                const pill = document.createElement('span');
+                pill.className = 'inline-flex items-center gap-1 rounded-ui border border-border bg-page px-2 py-0.5 text-caption font-medium text-text';
+
+                const text = document.createElement('span');
+                text.textContent = cb.dataset.label || cb.value;
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.dataset.msRemove = cb.value;
+                removeBtn.setAttribute('aria-label', `Remove ${cb.dataset.label || cb.value}`);
+                removeBtn.className = 'cursor-pointer rounded text-muted transition-colors hover:text-danger focus-visible:outline-2 focus-visible:outline-primary';
+                removeBtn.textContent = '×';
+                removeBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    cb.checked = false;
+                    sync();
+                });
+
+                pill.append(text, removeBtn);
+                return pill;
+            }));
+
+            pills.classList.toggle('hidden', checked.length === 0);
+            pills.classList.toggle('flex', checked.length > 0);
+        }
+    };
+
+    const filterOptions = () => {
+        const query = (search?.value || '').trim().toLowerCase();
+        let visibleCount = 0;
+
+        options.forEach((opt) => {
+            const matches = opt.dataset.search.includes(query);
+            opt.hidden = !matches;
+            if (matches) {
+                visibleCount++;
+            }
+        });
+
+        if (noMatch) {
+            noMatch.hidden = visibleCount > 0;
+        }
+    };
+
+    checkboxes.forEach((cb) => cb.addEventListener('change', sync));
+
+    search?.addEventListener('input', filterOptions);
+    search?.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+        }
+    });
+
+    clearBtn?.addEventListener('click', () => {
+        checkboxes.forEach((cb) => {
+            cb.checked = false;
+        });
+        sync();
+    });
+
+    doneBtn?.addEventListener('click', () => {
+        details?.removeAttribute('open');
+    });
+
+    details?.addEventListener('toggle', () => {
+        if (details.open) {
+            search?.focus();
+        } else if (search) {
+            search.value = '';
+            filterOptions();
+        }
+    });
+
+    sync();
+};
+
+document.querySelectorAll('[data-multi-select]').forEach(initMultiSelect);

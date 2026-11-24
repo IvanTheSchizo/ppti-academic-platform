@@ -1,3 +1,8 @@
+@php
+    $selectedBatchIds = array_map('intval', old('batch_ids', []));
+    $batchOptions = $batches->map(fn ($batch) => ['value' => $batch->id, 'label' => $batch->batch_name])->all();
+@endphp
+
 <div class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
     <x-form.field name="lecturer_code" label="Lecturer Code" :required="true">
         <x-form.text-input name="lecturer_code" :value="old('lecturer_code')" placeholder="e.g. D6767" maxlength="20" autocomplete="off" />
@@ -35,6 +40,21 @@
                 <option value="{{ $gender }}" @selected(old('gender') === $gender)>{{ $gender }}</option>
             @endforeach
         </x-form.select>
+    </x-form.field>
+
+    <x-form.field name="job_start_date" label="Job Start Date">
+        <x-form.text-input type="date" name="job_start_date" :value="old('job_start_date')" />
+    </x-form.field>
+
+    <x-form.field name="batch_ids" label="Batch">
+        <x-form.multi-select
+            name="batch_ids[]"
+            :options="$batchOptions"
+            :selected="$selectedBatchIds"
+            placeholder="Select Batches"
+            search-placeholder="Search batches..."
+            empty-message="No batches available yet. Add batches in the Batch tab."
+        />
     </x-form.field>
 
     <x-form.field name="email_binus_edu" label="Email 1">

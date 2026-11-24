@@ -30,7 +30,7 @@
             @elseif ($tab === 'class')
                 <p class="text-body text-muted">Missing batches will be created automatically when you confirm the import. Existing batches will be reused.</p>
             @elseif ($tab === 'lecturer')
-                <p class="text-body text-muted">Existing lecturers matched by <strong>lecturer_code</strong> will be updated; blank cells retain their current values.</p>
+                <p class="text-body text-muted">Existing lecturers matched by <strong>lecturer_code</strong> will be updated; blank cells retain their current values. Separate multiple batches with <strong>;</strong> (e.g. PPTI18;PPTI19); missing batches will be created automatically.</p>
             @endif
         </div>
 

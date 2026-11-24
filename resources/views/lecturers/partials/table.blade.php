@@ -3,6 +3,7 @@
 @endphp
 
 <x-ui.table id="lecturer-table" :headings="[
+    ['label' => 'Batch', 'sortable' => false],
     ['label' => 'Lecturer Code', 'key' => 'lecturer_code'],
     ['label' => 'Name', 'key' => 'name'],
     ['label' => 'Email', 'key' => 'email_binus_edu'],
@@ -10,6 +11,7 @@
 ]">
     @forelse ($lecturers as $lecturer)
         <tr data-row-href="{{ route('lecturers.profile', $lecturer->id) }}" class="cursor-pointer">
+            <td>{{ $lecturer->batchLabels() }}</td>
             <td>{{ $lecturer->lecturer_code }}</td>
             <td>{{ $lecturer->name }}</td>
             <td>{{ $lecturer->email_binus_edu }}</td>
@@ -17,7 +19,7 @@
         </tr>
     @empty
         <tr>
-            <td colspan="4">
+            <td colspan="5">
                 <x-ui.empty-state title="No lecturers found" description="Try changing the search or filters." icon="search" />
             </td>
         </tr>

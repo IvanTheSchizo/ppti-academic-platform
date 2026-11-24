@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Batch;
 use App\Models\CourseRecord;
 use App\Models\Lecturer;
 use App\Services\AuditLogger;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LecturerController extends Controller
 {
@@ -34,13 +36,14 @@ class LecturerController extends Controller
         // Dropdown option sets for filter drawer
         $jjaOptions = Lecturer::whereNotNull('jja')->pluck('jja')->unique()->sort()->values();
         $educationOptions = Lecturer::whereNotNull('latest_education')->pluck('latest_education')->unique()->sort()->values();
+        $batches = Batch::all()->sortBy(fn ($batch) => (int) preg_replace('/\D/', '', $batch->batch_name), SORT_NUMERIC)->values();
 
-        return view('lecturers.index', compact('lecturers', 'exportLecturers', 'stats', 'jjaOptions', 'educationOptions'));
+        return view('lecturers.index', compact('lecturers', 'exportLecturers', 'stats', 'jjaOptions', 'educationOptions', 'batches'));
     }
 
     private function filteredLecturersQuery(Request $request)
     {
-        $query = Lecturer::query();
+        $query = Lecturer::with('batches');
 
         // 1. Search Query
         if ($request->filled('q')) {
@@ -50,13 +53,19 @@ class LecturerController extends Controller
                     ->orWhere('lecturer_code', 'like', "%{$q}%")
                     ->orWhere('nip', 'like', "%{$q}%")
                     ->orWhere('email_binus_edu', 'like', "%{$q}%")
-                    ->orWhere('email_binus_ac_id', 'like', "%{$q}%");
+                    ->orWhere('email_binus_ac_id', 'like', "%{$q}%")
+                    ->orWhereHas('batches', fn ($bq) => $bq->where('batch_name', 'like', "%{$q}%"));
             });
         }
 
         // 2. Filters
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
+        }
+
+        if ($request->filled('batch')) {
+            $batchName = $request->input('batch');
+            $query->whereHas('batches', fn ($bq) => $bq->where('batch_name', $batchName));
         }
 
         if ($request->filled('jja')) {
@@ -86,6 +95,7 @@ class LecturerController extends Controller
      */
     public function show(Request $request, Lecturer $lecturer)
     {
+        $lecturer->load('batches');
         $activeTab = $request->query('tab', 'overview');
 
         $courses = null;
@@ -120,8 +130,9 @@ class LecturerController extends Controller
         }
 
         $kpi = $lecturer->performances()->avg('ikadq');
+        $batches = Batch::all()->sortBy(fn ($batch) => (int) preg_replace('/\D/', '', $batch->batch_name), SORT_NUMERIC)->values();
 
-        return view('lecturers.profile', compact('lecturer', 'activeTab', 'courses', 'exportCourses', 'kpi'));
+        return view('lecturers.profile', compact('lecturer', 'activeTab', 'courses', 'exportCourses', 'kpi', 'batches'));
     }
 
     private function coursesQuery(Lecturer $lecturer, ?string $search = null)
@@ -153,22 +164,37 @@ class LecturerController extends Controller
             'email_binus_ac_id' => 'nullable|email|max:255|unique:lecturers,email_binus_ac_id,'.$lecturer->id,
             'phone_number' => 'nullable|string|max:30',
             'gender' => 'nullable|in:Male,Female',
+            'job_start_date' => 'nullable|date',
+            'batch_ids' => 'nullable|array',
+            'batch_ids.*' => 'exists:batches,id',
         ]);
 
         // Capture the approved fields before and after the update so the audit log
         // records only actual changes and never includes unrelated model attributes.
         $fields = [
             'lecturer_code', 'name', 'jja', 'latest_education', 'status',
-            'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number',
+            'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number', 'job_start_date',
         ];
-        $oldValues = $auditLogger->snapshot($lecturer, $fields);
-        $lecturer->update($validated);
-        $lecturer->refresh();
-        $newValues = $auditLogger->snapshot($lecturer, $fields);
 
-        if ($oldValues !== $newValues) {
-            $auditLogger->record('UPDATE', 'Lecturer', $lecturer->id, $oldValues, $newValues);
-        }
+        DB::transaction(function () use ($lecturer, $validated, $auditLogger, $fields) {
+            $lecturer->load('batches');
+            $oldValues = $auditLogger->snapshot($lecturer, $fields);
+            $oldValues['job_start_date'] = $lecturer->job_start_date?->toDateString();
+            $oldValues['batches'] = implode(', ', $lecturer->sortedBatchNames()) ?: null;
+
+            $lecturer->update(collect($validated)->except('batch_ids')->all());
+            $lecturer->batches()->sync($validated['batch_ids'] ?? []);
+
+            $lecturer->refresh();
+            $lecturer->load('batches');
+            $newValues = $auditLogger->snapshot($lecturer, $fields);
+            $newValues['job_start_date'] = $lecturer->job_start_date?->toDateString();
+            $newValues['batches'] = implode(', ', $lecturer->sortedBatchNames()) ?: null;
+
+            if ($oldValues !== $newValues) {
+                $auditLogger->record('UPDATE', 'Lecturer', $lecturer->id, $oldValues, $newValues);
+            }
+        });
 
         if ($request->wantsJson()) {
             return response()->json($lecturer);
@@ -200,6 +226,8 @@ class LecturerController extends Controller
                 'NIP',
                 'Lecturer Code',
                 'Name',
+                'Batches',
+                'Job Start Date',
                 'Email (binus.edu)',
                 'Email (binus.ac.id)',
                 'Phone Number',
@@ -214,6 +242,8 @@ class LecturerController extends Controller
                         $lecturer->nip,
                         $lecturer->lecturer_code,
                         $lecturer->name,
+                        implode('; ', $lecturer->sortedBatchNames()),
+                        $lecturer->job_start_date?->toDateString(),
                         $lecturer->email_binus_edu,
                         $lecturer->email_binus_ac_id,
                         $lecturer->phone_number,
@@ -262,12 +292,15 @@ class LecturerController extends Controller
                         }
                     });
             } else {
+                $lecturer->load('batches');
                 $kpi = $lecturer->performances()->avg('ikadq');
 
                 fputcsv($file, [
                     'Lecturer Code',
                     'Name',
                     'NIP',
+                    'Batches',
+                    'Job Start Date',
                     'JJA',
                     'Latest Education',
                     'Status',
@@ -281,6 +314,8 @@ class LecturerController extends Controller
                     $lecturer->lecturer_code,
                     $lecturer->name,
                     $lecturer->nip,
+                    implode('; ', $lecturer->sortedBatchNames()) ?: '-',
+                    $lecturer->job_start_date?->toDateString() ?? '-',
                     $lecturer->jja,
                     $lecturer->latest_education,
                     $lecturer->status,

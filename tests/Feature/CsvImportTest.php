@@ -193,4 +193,50 @@ class CsvImportTest extends TestCase
             ->assertJsonPath('valid', 0)
             ->assertJsonPath('invalid', 1);
     }
+
+    public function test_lecturer_csv_import_handles_multi_batch_and_job_start_date_and_retains_blank_values(): void
+    {
+        $admin = Admin::create([
+            'username' => 'admin_lecturer_batch_csv',
+            'password' => Hash::make('Password1!'),
+        ]);
+        $this->actingAs($admin);
+
+        $csv = implode("\n", [
+            'lecturer_code,name,batch,job_start_date,jja,latest_education,status,gender,email_binus_edu,email_binus_ac_id,phone_number',
+            'D3001,Dr. Multi,PPTI18;PPTI19,2022-08-15,Lektor,S3,Active,Male,multi@binus.edu,multi@binus.ac.id,+628333333333',
+        ]);
+
+        $file = UploadedFile::fake()->createWithContent('lecturers_batch.csv', $csv);
+        $preview = $this->postJson(route('input-data.import.preview', 'lecturer'), ['file' => $file]);
+        $preview->assertOk()->assertJsonPath('valid', 1)->assertJsonPath('invalid', 0);
+
+        $this->postJson(route('input-data.import.commit', 'lecturer'), ['token' => $preview->json('token')])
+            ->assertOk()
+            ->assertJsonPath('imported', 1);
+
+        $lecturer = Lecturer::where('lecturer_code', 'D3001')->with('batches')->firstOrFail();
+        $this->assertSame(['PPTI18', 'PPTI19'], $lecturer->sortedBatchNames());
+        $this->assertSame('2022-08-15', $lecturer->job_start_date?->toDateString());
+
+        // Re-import with blank batch and job_start_date retains existing values
+        $reimportCsv = implode("\n", [
+            'lecturer_code,name,batch,job_start_date,jja,latest_education,status,gender,email_binus_edu,email_binus_ac_id,phone_number',
+            'D3001,Dr. Multi Updated,,,,,,,,multi2@binus.ac.id,',
+        ]);
+
+        $reimportFile = UploadedFile::fake()->createWithContent('lecturers_reimport.csv', $reimportCsv);
+        $reimportPreview = $this->postJson(route('input-data.import.preview', 'lecturer'), ['file' => $reimportFile]);
+        $reimportPreview->assertOk()->assertJsonPath('valid', 1)->assertJsonPath('invalid', 0);
+
+        $this->postJson(route('input-data.import.commit', 'lecturer'), ['token' => $reimportPreview->json('token')])
+            ->assertOk()
+            ->assertJsonPath('imported', 1);
+
+        $lecturer->refresh()->load('batches');
+        $this->assertSame('Dr. Multi Updated', $lecturer->name);
+        $this->assertSame(['PPTI18', 'PPTI19'], $lecturer->sortedBatchNames());
+        $this->assertSame('2022-08-15', $lecturer->job_start_date?->toDateString());
+        $this->assertSame('multi2@binus.ac.id', $lecturer->email_binus_ac_id);
+    }
 }

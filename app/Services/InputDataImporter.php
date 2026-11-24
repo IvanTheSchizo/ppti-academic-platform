@@ -27,7 +27,7 @@ class InputDataImporter
     /** tab => column => required? */
     public const COLUMNS = [
         'student' => ['nim' => true, 'name' => true, 'class_code' => true, 'batch' => true, 'status' => false, 'gender' => false, 'email' => false, 'phone_number' => false, 'date_of_birth' => false, 'cumulative_gpa' => false],
-        'lecturer' => ['lecturer_code' => true, 'name' => true, 'jja' => false, 'latest_education' => false, 'status' => false, 'gender' => false, 'email_binus_edu' => false, 'email_binus_ac_id' => false, 'phone_number' => false],
+        'lecturer' => ['lecturer_code' => true, 'name' => true, 'batch' => false, 'job_start_date' => false, 'jja' => false, 'latest_education' => false, 'status' => false, 'gender' => false, 'email_binus_edu' => false, 'email_binus_ac_id' => false, 'phone_number' => false],
         'course' => ['course_code' => true, 'course_name' => true, 'sks' => true],
         'class' => ['batch' => true, 'class_code' => true],
         'course-record' => ['course_code' => true, 'period' => true, 'class_code' => true, 'lecturer_code' => true, 'ikadq' => false, 'students' => false],
@@ -223,7 +223,23 @@ class InputDataImporter
 
     private function lecturer(array $row, array &$seen): array
     {
+        $errors = [];
+        $notices = [];
         $existing = $row['lecturer_code'] !== '' ? Lecturer::where('lecturer_code', $row['lecturer_code'])->first() : null;
+
+        $rawJobStartDate = trim((string) ($row['job_start_date'] ?? ''));
+        $jobStartDate = $rawJobStartDate !== ''
+            ? $this->date($rawJobStartDate, $errors, 'Job start date', true)
+            : $existing?->job_start_date?->toDateString();
+
+        $batchNames = array_values(array_unique(array_filter(array_map('trim', preg_split('/[;|]/', (string) ($row['batch'] ?? ''))))));
+        foreach ($batchNames as $batchName) {
+            if (mb_strlen($batchName) > 255) {
+                $errors[] = "Batch \"{$batchName}\" may not be greater than 255 characters.";
+            } elseif (! Batch::where('batch_name', $batchName)->exists()) {
+                $notices[] = "Batch \"{$batchName}\" will be created automatically.";
+            }
+        }
 
         if ($existing) {
             $input = [
@@ -238,8 +254,17 @@ class InputDataImporter
                 'phone_number' => $row['phone_number'] !== '' ? $row['phone_number'] : $existing->phone_number,
             ];
         } else {
-            $input = array_map(fn ($v) => $this->nullable($v), array_diff_key($row, ['_line' => 1]));
-            $input['status'] = $row['status'] ?: 'Active';
+            $input = [
+                'lecturer_code' => $this->nullable($row['lecturer_code']),
+                'name' => $this->nullable($row['name']),
+                'jja' => $this->nullable($row['jja']),
+                'latest_education' => $this->nullable($row['latest_education']),
+                'status' => $row['status'] ?: 'Active',
+                'gender' => $this->nullable($row['gender']),
+                'email_binus_edu' => $this->nullable($row['email_binus_edu']),
+                'email_binus_ac_id' => $this->nullable($row['email_binus_ac_id']),
+                'phone_number' => $this->nullable($row['phone_number']),
+            ];
         }
 
         $validator = Validator::make($input, [
@@ -254,7 +279,7 @@ class InputDataImporter
             'phone_number' => 'nullable|string|max:30',
         ]);
 
-        $errors = $validator->errors()->all();
+        $errors = array_merge($errors, $validator->errors()->all());
 
         $emailFields = [
             'email_binus_edu' => 'Email (binus.edu)',
@@ -281,10 +306,18 @@ class InputDataImporter
             }
         }
 
-        $data = $validator->validated();
+        $data = $validator->validated() + ['job_start_date' => $jobStartDate];
+
+        if ($batchNames !== []) {
+            $data['_batch_names'] = $batchNames;
+        }
 
         if ($existing) {
-            $data['_notices'] = ["Existing lecturer \"{$row['lecturer_code']}\" will be updated."];
+            $notices[] = "Existing lecturer \"{$row['lecturer_code']}\" will be updated.";
+        }
+
+        if ($notices !== []) {
+            $data['_notices'] = $notices;
         }
 
         return [$data, []];
@@ -427,17 +460,30 @@ class InputDataImporter
             $audit = app(AuditLogger::class);
             $fields = [
                 'lecturer_code', 'name', 'jja', 'latest_education', 'status',
-                'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number',
+                'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number', 'job_start_date',
             ];
 
-            unset($data['_notices']);
+            $batchNames = $data['_batch_names'] ?? [];
+            unset($data['_notices'], $data['_batch_names']);
+
+            $batchIds = [];
+            foreach ($batchNames as $batchName) {
+                $batch = Batch::firstOrCreate(['batch_name' => $batchName]);
+                if ($batch->wasRecentlyCreated) {
+                    $audit->record('CREATE', 'Batch', $batch->id, null, $audit->snapshot($batch, ['batch_name']));
+                }
+                $batchIds[] = $batch->id;
+            }
 
             $existing = Lecturer::where('lecturer_code', $data['lecturer_code'])->first();
 
             if ($existing) {
+                $existing->load('batches');
                 $old = $audit->snapshot($existing, $fields);
-                $updateData = [];
+                $old['job_start_date'] = $existing->job_start_date?->toDateString();
+                $old['batches'] = implode(', ', $existing->sortedBatchNames()) ?: null;
 
+                $updateData = [];
                 foreach ($fields as $field) {
                     if (array_key_exists($field, $data) && $data[$field] !== null && $data[$field] !== '') {
                         $updateData[$field] = $data[$field];
@@ -445,8 +491,15 @@ class InputDataImporter
                 }
 
                 $existing->update($updateData);
+                if ($batchIds !== []) {
+                    $existing->batches()->sync($batchIds);
+                }
+
                 $existing->refresh();
+                $existing->load('batches');
                 $new = $audit->snapshot($existing, $fields);
+                $new['job_start_date'] = $existing->job_start_date?->toDateString();
+                $new['batches'] = implode(', ', $existing->sortedBatchNames()) ?: null;
 
                 if ($old !== $new) {
                     $audit->record('UPDATE', 'Lecturer', $existing->id, $old, $new);
@@ -456,7 +509,16 @@ class InputDataImporter
             }
 
             $lecturer = Lecturer::create($data);
-            $audit->record('CREATE', 'Lecturer', $lecturer->id, null, $audit->snapshot($lecturer, $fields));
+            if ($batchIds !== []) {
+                $lecturer->batches()->sync($batchIds);
+            }
+            $lecturer->load('batches');
+
+            $snapshot = $audit->snapshot($lecturer, $fields);
+            $snapshot['job_start_date'] = $lecturer->job_start_date?->toDateString();
+            $snapshot['batches'] = implode(', ', $lecturer->sortedBatchNames()) ?: null;
+
+            $audit->record('CREATE', 'Lecturer', $lecturer->id, null, $snapshot);
         });
     }
 
@@ -599,7 +661,7 @@ class InputDataImporter
         return $matches->first();
     }
 
-    private function date(string $value, array &$errors): ?string
+    private function date(string $value, array &$errors, string $label = 'Date of birth', bool $allowFuture = false): ?string
     {
         if ($value === '') {
             return null;
@@ -612,12 +674,14 @@ class InputDataImporter
                 continue;
             }
 
-            if ($date->format($format) === $value && $date->lte(today())) {
+            if ($date->format($format) === $value && ($allowFuture || $date->lte(today()))) {
                 return $date->toDateString();
             }
         }
 
-        $errors[] = 'Date of birth must be YYYY-MM-DD or DD/MM/YYYY and not in the future.';
+        $errors[] = $allowFuture
+            ? "{$label} must be YYYY-MM-DD or DD/MM/YYYY."
+            : "{$label} must be YYYY-MM-DD or DD/MM/YYYY and not in the future.";
 
         return null;
     }
