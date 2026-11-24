@@ -2,5 +2,6 @@
     <x-ui.stat label="Total" :value="$stats['total']" />
     <x-ui.stat label="Active" :value="$stats['active']" color="success" />
     <x-ui.stat label="Graduated" :value="$stats['graduated']" color="primary" />
-    <x-ui.stat label="On Leave" :value="$stats['on_leave']" color="danger" />
+    <x-ui.stat label="On Leave" :value="$stats['on_leave']" color="warning" />
+    <x-ui.stat label="Dropout" :value="$stats['dropout']" color="danger" />
 </div>

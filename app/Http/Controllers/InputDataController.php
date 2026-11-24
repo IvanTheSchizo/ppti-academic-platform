@@ -159,7 +159,8 @@ class InputDataController extends Controller
             'nim' => 'required|string|max:255|unique:students,nim',
             'name' => 'required|string|max:255',
             'class_id' => 'required|exists:class_groups,id',
-            'status' => 'required|in:Active,Graduated,On Leave',
+            'status' => 'required|in:'.implode(',', Student::STATUSES),
+            'status_reason' => 'nullable|string|max:1000',
             'gender' => 'nullable|in:Male,Female',
             'email' => 'nullable|email|max:255',
             'phone_number' => 'nullable|string|max:30',
@@ -177,10 +178,13 @@ class InputDataController extends Controller
         $semesters = collect($validated['semesters'] ?? []);
         unset($validated['semesters']);
         $validated['cumulative_gpa'] = $semesters->isEmpty() ? 0 : round($semesters->avg('gpa'), 2);
+        if (! in_array($validated['status'], Student::REASON_STATUSES, true)) {
+            $validated['status_reason'] = null;
+        }
 
         DB::transaction(function () use ($validated, $semesters, $auditLogger) {
             $student = Student::create($validated);
-            $auditLogger->record('CREATE', 'Student', $student->id, null, $auditLogger->snapshot($student, ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa']));
+            $auditLogger->record('CREATE', 'Student', $student->id, null, $auditLogger->snapshot($student, ['nim', 'name', 'class_id', 'status', 'status_reason', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa']));
 
             $student->semesterGpas()->createMany(
                 $semesters->map(fn ($row) => ['period_id' => $row['period_id'], 'gpa' => $row['gpa']])->all()

@@ -9,11 +9,16 @@ class Student extends Model
 {
     use HasFactory;
 
+    public const STATUSES = ['Active', 'Graduated', 'On Leave', 'Dropout'];
+
+    public const REASON_STATUSES = ['On Leave', 'Dropout'];
+
     protected $fillable = [
         'nim',
         'name',
         'class_id',
         'status',
+        'status_reason',
         'gender',
         'email',
         'phone_number',

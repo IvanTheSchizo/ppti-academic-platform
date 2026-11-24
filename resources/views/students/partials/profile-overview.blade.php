@@ -6,6 +6,9 @@
             <x-ui.detail label="Class">{{ $student->classGroup?->class_code ?? '-' }}</x-ui.detail>
             <x-ui.detail label="Cumulative GPA">{{ number_format((float) $student->cumulative_gpa, 2) }}</x-ui.detail>
             <x-ui.detail label="Academic Status">{{ $student->status }}</x-ui.detail>
+            @if (in_array($student->status, \App\Models\Student::REASON_STATUSES, true) || filled($student->status_reason))
+                <x-ui.detail label="Reason">{{ $student->status_reason ?: '-' }}</x-ui.detail>
+            @endif
         </x-ui.detail-list>
     </x-ui.card>
 

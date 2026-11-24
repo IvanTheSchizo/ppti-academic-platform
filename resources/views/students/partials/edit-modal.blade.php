@@ -35,11 +35,15 @@
             </x-form.field>
 
             <x-form.field name="status" label="Status" :caps="true">
-                <x-form.select name="status" required>
-                    @foreach (['Active', 'Graduated', 'On Leave'] as $status)
+                <x-form.select name="status" required data-status-select>
+                    @foreach (\App\Models\Student::STATUSES as $status)
                         <option value="{{ $status }}" @selected(old('status', $student->status) === $status)>{{ $status }}</option>
                     @endforeach
                 </x-form.select>
+            </x-form.field>
+
+            <x-form.field name="status_reason" label="Reason" :caps="true" data-status-reason :class="in_array(old('status', $student->status), \App\Models\Student::REASON_STATUSES, true) ? '' : 'hidden'">
+                <x-form.text-input name="status_reason" :value="old('status_reason', $student->status_reason)" placeholder="Reason for On Leave or Dropout" maxlength="1000" autocomplete="off" />
             </x-form.field>
 
             <x-form.field name="gender" label="Gender" :caps="true">

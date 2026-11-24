@@ -9,7 +9,7 @@
     $selectedClasses = $normalizeFilter('class');
 
     $batchOptions = $batches->map(fn ($batch) => ['value' => $batch->batch_name, 'label' => $batch->batch_name])->all();
-    $statusOptions = collect(['Active', 'Graduated', 'On Leave'])->map(fn ($status) => ['value' => $status, 'label' => $status])->all();
+    $statusOptions = collect(\App\Models\Student::STATUSES)->map(fn ($status) => ['value' => $status, 'label' => $status])->all();
     $classOptions = $classes->map(fn ($classCode) => ['value' => $classCode, 'label' => $classCode])->all();
 
     $filtersOpen = $selectedBatches !== []

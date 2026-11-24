@@ -26,7 +26,7 @@ class InputDataImporter
 
     /** tab => column => required? */
     public const COLUMNS = [
-        'student' => ['nim' => true, 'name' => true, 'class_code' => true, 'batch' => true, 'status' => false, 'gender' => false, 'email' => false, 'phone_number' => false, 'date_of_birth' => false, 'cumulative_gpa' => false],
+        'student' => ['nim' => true, 'name' => true, 'class_code' => true, 'batch' => true, 'status' => false, 'status_reason' => false, 'gender' => false, 'email' => false, 'phone_number' => false, 'date_of_birth' => false, 'cumulative_gpa' => false],
         'lecturer' => ['lecturer_code' => true, 'name' => true, 'batch' => false, 'job_start_date' => false, 'jja' => false, 'latest_education' => false, 'status' => false, 'gender' => false, 'email_binus_edu' => false, 'email_binus_ac_id' => false, 'phone_number' => false],
         'course' => ['course_code' => true, 'course_name' => true, 'sks' => true],
         'class' => ['batch' => true, 'class_code' => true],
@@ -177,10 +177,17 @@ class InputDataImporter
         ]);
         $errors = array_merge($errors, $dependencyValidator->errors()->all());
 
+        $status = $row['status'] ?: ($existing?->status ?? 'Active');
+        $rawReason = $this->nullable($row['status_reason'] ?? '');
+        $statusReason = in_array($status, Student::REASON_STATUSES, true)
+            ? ($rawReason ?? $existing?->status_reason)
+            : null;
+
         $validator = Validator::make([
             'nim' => $row['nim'],
             'name' => $row['name'],
-            'status' => $row['status'] ?: ($existing?->status ?? 'Active'),
+            'status' => $status,
+            'status_reason' => $statusReason,
             'gender' => $this->nullable($row['gender']),
             'email' => $this->nullable($row['email']),
             'phone_number' => $this->nullable($row['phone_number']),
@@ -188,7 +195,8 @@ class InputDataImporter
         ], [
             'nim' => 'required|string|max:255',
             'name' => 'required|string|max:255',
-            'status' => 'in:Active,Graduated,On Leave',
+            'status' => 'in:'.implode(',', Student::STATUSES),
+            'status_reason' => 'nullable|string|max:1000',
             'gender' => 'nullable|in:Male,Female',
             'email' => 'nullable|email|max:255',
             'phone_number' => 'nullable|string|max:30',
@@ -427,7 +435,7 @@ class InputDataImporter
 
             unset($data['_batch_name'], $data['_class_code'], $data['_notices']);
 
-            $fields = ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa'];
+            $fields = ['nim', 'name', 'class_id', 'status', 'status_reason', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa'];
             $existing = Student::where('nim', $data['nim'])->first();
 
             if ($existing) {

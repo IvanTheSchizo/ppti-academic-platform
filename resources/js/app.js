@@ -1262,3 +1262,21 @@ const initMultiSelect = (root) => {
 };
 
 document.querySelectorAll('[data-multi-select]').forEach(initMultiSelect);
+
+// Show Student status reason field only when status is On Leave or Dropout.
+const syncStatusReason = (select) => {
+    const field = select.closest('form')?.querySelector('[data-status-reason]');
+    if (!field) {
+        return;
+    }
+
+    const needsReason = select.value === 'On Leave' || select.value === 'Dropout';
+    field.classList.toggle('hidden', !needsReason);
+};
+
+document.querySelectorAll('[data-status-select]').forEach(syncStatusReason);
+document.addEventListener('change', (event) => {
+    if (event.target.matches('[data-status-select]')) {
+        syncStatusReason(event.target);
+    }
+});

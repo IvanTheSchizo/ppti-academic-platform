@@ -24,6 +24,7 @@ class StudentController extends Controller
             'active' => Student::where('status', 'Active')->count(),
             'graduated' => Student::where('status', 'Graduated')->count(),
             'on_leave' => Student::where('status', 'On Leave')->count(),
+            'dropout' => Student::where('status', 'Dropout')->count(),
         ];
 
         $query = $this->filteredStudentsQuery($request);
@@ -61,7 +62,7 @@ class StudentController extends Controller
 
         $callback = function () use ($query) {
             $file = fopen('php://output', 'w');
-            fputcsv($file, ['Batch', 'Student ID', 'Name', 'Class', 'Status', 'GPA']);
+            fputcsv($file, ['Batch', 'Student ID', 'Name', 'Class', 'Status', 'Reason', 'GPA']);
 
             $query->chunk(200, function ($students) use ($file) {
                 foreach ($students as $student) {
@@ -71,6 +72,7 @@ class StudentController extends Controller
                         $student->name,
                         $student->classGroup?->class_code ?? '-',
                         $student->status,
+                        $student->status_reason ?? '-',
                         $student->cumulative_gpa,
                     ]);
                 }
@@ -207,7 +209,8 @@ class StudentController extends Controller
             'nim' => 'required|string|max:255|unique:students,nim,'.$student->id,
             'name' => 'required|string|max:255',
             'class_id' => 'required|exists:class_groups,id',
-            'status' => 'required|in:Active,Graduated,On Leave',
+            'status' => 'required|in:'.implode(',', Student::STATUSES),
+            'status_reason' => 'nullable|string|max:1000',
             'gender' => 'nullable|in:Male,Female',
             'email' => 'nullable|email|max:255',
             'phone_number' => 'nullable|string|max:30',
@@ -227,9 +230,12 @@ class StudentController extends Controller
 
         // Cumulative GPA is calculated from the semester GPAs.
         $validated['cumulative_gpa'] = $semesters->isEmpty() ? 0 : round($semesters->avg('gpa'), 2);
+        if (! in_array($validated['status'], Student::REASON_STATUSES, true)) {
+            $validated['status_reason'] = null;
+        }
 
         DB::transaction(function () use ($student, $validated, $semesters, $auditLogger) {
-            $fields = ['nim', 'name', 'class_id', 'status', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa'];
+            $fields = ['nim', 'name', 'class_id', 'status', 'status_reason', 'gender', 'email', 'phone_number', 'date_of_birth', 'cumulative_gpa'];
             $oldStudent = $auditLogger->snapshot($student, $fields);
             $oldSemesters = $student->semesterGpas()->get(['period_id', 'gpa'])->map(fn ($row) => ['period_id' => $row->period_id, 'gpa' => $row->gpa])->all();
             $student->update($validated);
@@ -284,13 +290,14 @@ class StudentController extends Controller
             } else {
                 $student->load('classGroup.batch');
 
-                fputcsv($file, ['Student ID', 'Name', 'Batch', 'Class', 'Status', 'Cumulative GPA']);
+                fputcsv($file, ['Student ID', 'Name', 'Batch', 'Class', 'Status', 'Reason', 'Cumulative GPA']);
                 fputcsv($file, [
                     $student->nim,
                     $student->name,
                     $student->classGroup?->batch?->batch_name,
                     $student->classGroup?->class_code,
                     $student->status,
+                    $student->status_reason ?? '-',
                     $student->cumulative_gpa,
                 ]);
                 fputcsv($file, []);

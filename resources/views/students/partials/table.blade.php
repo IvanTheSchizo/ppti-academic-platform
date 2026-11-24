@@ -1,5 +1,5 @@
 @php
-    $statusColors = ['Active' => 'success', 'Graduated' => 'primary', 'On Leave' => 'danger'];
+    $statusColors = ['Active' => 'success', 'Graduated' => 'primary', 'On Leave' => 'warning', 'Dropout' => 'danger'];
 @endphp
 
 <x-ui.table :headings="[
