@@ -27,7 +27,7 @@ class InputDataImporter
     /** tab => column => required? */
     public const COLUMNS = [
         'student' => ['nim' => true, 'name' => true, 'class_code' => true, 'batch' => true, 'status' => false, 'status_reason' => false, 'gender' => false, 'email' => false, 'phone_number' => false, 'date_of_birth' => false, 'cumulative_gpa' => false],
-        'lecturer' => ['lecturer_code' => true, 'name' => true, 'batch' => false, 'job_start_date' => false, 'jja' => false, 'latest_education' => false, 'status' => false, 'gender' => false, 'email_binus_edu' => false, 'email_binus_ac_id' => false, 'phone_number' => false],
+        'lecturer' => ['lecturer_code' => true, 'name' => true, 'batch' => false, 'job_start_date' => false, 'jja' => false, 'latest_education' => false, 'status' => false, 'status_reason' => false, 'gender' => false, 'email_binus_edu' => false, 'email_binus_ac_id' => false, 'phone_number' => false],
         'course' => ['course_code' => true, 'course_name' => true, 'sks' => true],
         'class' => ['batch' => true, 'class_code' => true],
         'course-record' => ['course_code' => true, 'period' => true, 'class_code' => true, 'lecturer_code' => true, 'ikadq' => false, 'students' => false],
@@ -249,13 +249,20 @@ class InputDataImporter
             }
         }
 
+        $status = $row['status'] !== '' ? $row['status'] : ($existing?->status ?? 'Active');
+        $rawReason = $this->nullable($row['status_reason'] ?? '');
+        $statusReason = in_array($status, Lecturer::REASON_STATUSES, true)
+            ? ($rawReason ?? $existing?->status_reason)
+            : null;
+
         if ($existing) {
             $input = [
                 'lecturer_code' => $row['lecturer_code'],
                 'name' => $row['name'] !== '' ? $row['name'] : $existing->name,
                 'jja' => $row['jja'] !== '' ? $row['jja'] : $existing->jja,
                 'latest_education' => $row['latest_education'] !== '' ? $row['latest_education'] : $existing->latest_education,
-                'status' => $row['status'] !== '' ? $row['status'] : $existing->status,
+                'status' => $status,
+                'status_reason' => $statusReason,
                 'gender' => $row['gender'] !== '' ? $row['gender'] : $existing->gender,
                 'email_binus_edu' => $row['email_binus_edu'] !== '' ? $row['email_binus_edu'] : $existing->email_binus_edu,
                 'email_binus_ac_id' => $row['email_binus_ac_id'] !== '' ? $row['email_binus_ac_id'] : $existing->email_binus_ac_id,
@@ -267,7 +274,8 @@ class InputDataImporter
                 'name' => $this->nullable($row['name']),
                 'jja' => $this->nullable($row['jja']),
                 'latest_education' => $this->nullable($row['latest_education']),
-                'status' => $row['status'] ?: 'Active',
+                'status' => $status,
+                'status_reason' => $statusReason,
                 'gender' => $this->nullable($row['gender']),
                 'email_binus_edu' => $this->nullable($row['email_binus_edu']),
                 'email_binus_ac_id' => $this->nullable($row['email_binus_ac_id']),
@@ -280,7 +288,8 @@ class InputDataImporter
             'name' => 'required|string|max:255',
             'jja' => 'nullable|string|max:100',
             'latest_education' => 'nullable|string|max:50',
-            'status' => 'in:Active,Inactive',
+            'status' => 'in:'.implode(',', Lecturer::STATUSES),
+            'status_reason' => 'nullable|string|max:1000',
             'gender' => 'nullable|in:Male,Female',
             'email_binus_edu' => ['nullable', 'email', 'max:255', Rule::unique('lecturers', 'email_binus_edu')->ignore($existing?->id)],
             'email_binus_ac_id' => ['nullable', 'email', 'max:255', Rule::unique('lecturers', 'email_binus_ac_id')->ignore($existing?->id)],
@@ -467,7 +476,7 @@ class InputDataImporter
         DB::transaction(function () use ($data) {
             $audit = app(AuditLogger::class);
             $fields = [
-                'lecturer_code', 'name', 'jja', 'latest_education', 'status',
+                'lecturer_code', 'name', 'jja', 'latest_education', 'status', 'status_reason',
                 'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number', 'job_start_date',
             ];
 
@@ -496,6 +505,9 @@ class InputDataImporter
                     if (array_key_exists($field, $data) && $data[$field] !== null && $data[$field] !== '') {
                         $updateData[$field] = $data[$field];
                     }
+                }
+                if (! in_array($data['status'] ?? $existing->status, Lecturer::REASON_STATUSES, true)) {
+                    $updateData['status_reason'] = null;
                 }
 
                 $existing->update($updateData);

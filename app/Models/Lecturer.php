@@ -9,6 +9,10 @@ class Lecturer extends Model
 {
     use HasFactory;
 
+    public const STATUSES = ['Active', 'Inactive'];
+
+    public const REASON_STATUSES = ['Inactive'];
+
     protected $fillable = [
         'nip',
         'lecturer_code',
@@ -19,6 +23,7 @@ class Lecturer extends Model
         'jja',
         'latest_education',
         'status',
+        'status_reason',
         'gender',
         'job_start_date',
         'photo_path',

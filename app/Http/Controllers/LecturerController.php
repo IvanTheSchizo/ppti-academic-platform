@@ -162,7 +162,8 @@ class LecturerController extends Controller
             'name' => 'required|string|max:255',
             'latest_education' => 'nullable|string|max:50',
             'jja' => 'nullable|string|max:100',
-            'status' => 'required|string|in:Active,Inactive',
+            'status' => 'required|string|in:'.implode(',', Lecturer::STATUSES),
+            'status_reason' => 'nullable|string|max:1000',
             'email_binus_edu' => 'nullable|email|max:255|unique:lecturers,email_binus_edu,'.$lecturer->id,
             'email_binus_ac_id' => 'nullable|email|max:255|unique:lecturers,email_binus_ac_id,'.$lecturer->id,
             'phone_number' => 'nullable|string|max:30',
@@ -172,10 +173,14 @@ class LecturerController extends Controller
             'batch_ids.*' => 'exists:batches,id',
         ]);
 
+        if (! in_array($validated['status'], Lecturer::REASON_STATUSES, true)) {
+            $validated['status_reason'] = null;
+        }
+
         // Capture the approved fields before and after the update so the audit log
         // records only actual changes and never includes unrelated model attributes.
         $fields = [
-            'lecturer_code', 'name', 'jja', 'latest_education', 'status',
+            'lecturer_code', 'name', 'jja', 'latest_education', 'status', 'status_reason',
             'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number', 'job_start_date',
         ];
 
@@ -237,6 +242,7 @@ class LecturerController extends Controller
                 'JJA',
                 'Latest Education',
                 'Status',
+                'Reason',
             ]);
 
             $query->chunk(200, function ($lecturers) use ($handle) {
@@ -253,6 +259,7 @@ class LecturerController extends Controller
                         $lecturer->jja,
                         $lecturer->latest_education,
                         $lecturer->status,
+                        $lecturer->status_reason ?? '-',
                     ]);
                 }
             });
@@ -307,6 +314,7 @@ class LecturerController extends Controller
                     'JJA',
                     'Latest Education',
                     'Status',
+                    'Reason',
                     'Gender',
                     'Email (binus.edu)',
                     'Email (binus.ac.id)',
@@ -322,6 +330,7 @@ class LecturerController extends Controller
                     $lecturer->jja,
                     $lecturer->latest_education,
                     $lecturer->status,
+                    $lecturer->status_reason ?? '-',
                     $lecturer->gender ?? '-',
                     $lecturer->email_binus_edu,
                     $lecturer->email_binus_ac_id,

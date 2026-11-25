@@ -28,11 +28,14 @@
                 <x-form.text-input name="jja" :value="old('jja', $lecturer->jja)" maxlength="100" placeholder="e.g. Lektor" />
             </x-form.field>
             <x-form.field name="status" label="Status">
-                <x-form.select name="status" required>
-                    @foreach (['Active', 'Inactive'] as $status)
+                <x-form.select name="status" required data-status-select>
+                    @foreach (\App\Models\Lecturer::STATUSES as $status)
                         <option value="{{ $status }}" @selected(old('status', $lecturer->status) === $status)>{{ $status }}</option>
                     @endforeach
                 </x-form.select>
+            </x-form.field>
+            <x-form.field name="status_reason" label="Reason" data-status-reason :class="in_array(old('status', $lecturer->status), \App\Models\Lecturer::REASON_STATUSES, true) ? '' : 'hidden'">
+                <x-form.text-input name="status_reason" :value="old('status_reason', $lecturer->status_reason)" placeholder="Reason for Inactive status" maxlength="1000" autocomplete="off" />
             </x-form.field>
             <x-form.field name="gender" label="Gender">
                 <x-form.select name="gender">

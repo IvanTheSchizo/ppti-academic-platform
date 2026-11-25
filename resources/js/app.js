@@ -1263,14 +1263,14 @@ const initMultiSelect = (root) => {
 
 document.querySelectorAll('[data-multi-select]').forEach(initMultiSelect);
 
-// Show Student status reason field only when status is On Leave or Dropout.
+// Show status reason field only when status requires one (On Leave, Dropout, or Inactive).
 const syncStatusReason = (select) => {
     const field = select.closest('form')?.querySelector('[data-status-reason]');
     if (!field) {
         return;
     }
 
-    const needsReason = select.value === 'On Leave' || select.value === 'Dropout';
+    const needsReason = select.value === 'On Leave' || select.value === 'Dropout' || select.value === 'Inactive';
     field.classList.toggle('hidden', !needsReason);
 };
 

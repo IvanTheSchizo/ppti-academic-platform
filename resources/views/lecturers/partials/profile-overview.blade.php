@@ -8,6 +8,9 @@
             <x-ui.detail label="Academic Functional Rank">{{ $lecturer->jja }}</x-ui.detail>
             <x-ui.detail label="Latest Education">{{ $lecturer->latest_education }}</x-ui.detail>
             <x-ui.detail label="Status">{{ $lecturer->status }}</x-ui.detail>
+            @if (in_array($lecturer->status, \App\Models\Lecturer::REASON_STATUSES, true) || filled($lecturer->status_reason))
+                <x-ui.detail label="Reason">{{ $lecturer->status_reason ?: '-' }}</x-ui.detail>
+            @endif
             <x-ui.detail label="NIP">{{ $lecturer->nip }}</x-ui.detail>
         </x-ui.detail-list>
     </x-ui.card>

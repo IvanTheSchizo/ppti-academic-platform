@@ -201,7 +201,8 @@ class InputDataController extends Controller
             'name' => 'required|string|max:255',
             'jja' => 'nullable|string|max:100',
             'latest_education' => 'nullable|string|max:50',
-            'status' => 'required|in:Active,Inactive',
+            'status' => 'required|in:'.implode(',', Lecturer::STATUSES),
+            'status_reason' => 'nullable|string|max:1000',
             'gender' => 'nullable|in:Male,Female',
             'email_binus_edu' => 'nullable|email|max:255|unique:lecturers,email_binus_edu',
             'email_binus_ac_id' => 'nullable|email|max:255|unique:lecturers,email_binus_ac_id',
@@ -211,13 +212,17 @@ class InputDataController extends Controller
             'batch_ids.*' => 'exists:batches,id',
         ]);
 
+        if (! in_array($validated['status'], Lecturer::REASON_STATUSES, true)) {
+            $validated['status_reason'] = null;
+        }
+
         DB::transaction(function () use ($validated, $auditLogger) {
             $lecturer = Lecturer::create(collect($validated)->except('batch_ids')->all());
             $lecturer->batches()->sync($validated['batch_ids'] ?? []);
             $lecturer->load('batches');
 
             $snapshot = $auditLogger->snapshot($lecturer, [
-                'lecturer_code', 'name', 'jja', 'latest_education', 'status',
+                'lecturer_code', 'name', 'jja', 'latest_education', 'status', 'status_reason',
                 'gender', 'email_binus_edu', 'email_binus_ac_id', 'phone_number', 'job_start_date',
             ]);
             $snapshot['job_start_date'] = $lecturer->job_start_date?->toDateString();
