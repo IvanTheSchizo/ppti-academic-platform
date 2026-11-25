@@ -103,7 +103,7 @@
                     @foreach ($periodsList as $period)
                         <tr>
                             <td>{{ $period->period_name }}</td>
-                            <td>{{ $period->start_date->format('d M Y') }}</td>
+                            <td>{{ $period->start_date?->format('d M Y') ?? '-' }}</td>
                             <td>{{ $period->end_date?->format('d M Y') ?? 'Ongoing' }}</td>
                             <td>{{ $period->course_records_count }}</td>
                         </tr>

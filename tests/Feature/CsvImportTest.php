@@ -3,7 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\Admin;
+use App\Models\Batch;
+use App\Models\ClassGroup;
+use App\Models\Course;
+use App\Models\CourseRecord;
 use App\Models\Lecturer;
+use App\Models\Period;
 use App\Models\Student;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -238,5 +243,52 @@ class CsvImportTest extends TestCase
         $this->assertSame(['PPTI18', 'PPTI19'], $lecturer->sortedBatchNames());
         $this->assertSame('2022-08-15', $lecturer->job_start_date?->toDateString());
         $this->assertSame('multi2@binus.ac.id', $lecturer->email_binus_ac_id);
+    }
+
+    public function test_course_record_csv_import_creates_missing_periods_automatically(): void
+    {
+        $admin = Admin::create([
+            'username' => 'admin_cr_period_csv',
+            'password' => Hash::make('Password1!'),
+        ]);
+        $this->actingAs($admin);
+
+        $batch = Batch::create(['batch_name' => 'PPTI20']);
+        ClassGroup::create(['batch_id' => $batch->id, 'class_code' => 'LA01']);
+        Course::create(['course_code' => 'COMP8001', 'course_name' => 'Algorithms', 'sks' => '4']);
+        Course::create(['course_code' => 'COMP8002', 'course_name' => 'Databases', 'sks' => '4']);
+        Lecturer::create(['lecturer_code' => 'D9701', 'name' => 'Dr. Period', 'status' => 'Active']);
+
+        $csv = implode("\n", [
+            'course_code,period,class_code,lecturer_code,ikadq,students',
+            'COMP8001,Semester 1 - 2026,LA01,D9701,3.80,',
+            'COMP8002,Semester 1 - 2026,LA01,D9701,3.90,',
+        ]);
+
+        $file = UploadedFile::fake()->createWithContent('course_records.csv', $csv);
+        $preview = $this->postJson(route('input-data.import.preview', 'course-record'), ['file' => $file]);
+        $preview->assertOk()
+            ->assertJsonPath('valid', 2)
+            ->assertJsonPath('invalid', 0)
+            ->assertJsonPath('rows.0.notices.0', 'Period "Semester 1 - 2026" will be created automatically.');
+
+        $this->postJson(route('input-data.import.commit', 'course-record'), ['token' => $preview->json('token')])
+            ->assertOk()
+            ->assertJsonPath('imported', 2)
+            ->assertJsonPath('skipped', 0);
+
+        $this->assertSame(1, Period::where('period_name', 'Semester 1 - 2026')->count());
+        $period = Period::where('period_name', 'Semester 1 - 2026')->firstOrFail();
+        $this->assertNull($period->start_date);
+        $this->assertSame(2, CourseRecord::where('period_id', $period->id)->count());
+        $this->assertDatabaseHas('audit_logs', [
+            'action_type' => 'CREATE',
+            'target_entity' => 'Period',
+            'target_id' => $period->id,
+        ]);
+
+        $this->get(route('input-data.show', 'period'))
+            ->assertOk()
+            ->assertSee('Semester 1 - 2026');
     }
 }

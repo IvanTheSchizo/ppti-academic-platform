@@ -577,10 +577,22 @@ class InputDataImporter
     private function courseRecord(array $row): array
     {
         $errors = [];
+        $notices = [];
         $course = Course::where('course_code', $row['course_code'])->first() ?? $errors[] = "Course \"{$row['course_code']}\" does not exist.";
-        $period = Period::where('period_name', $row['period'])->first() ?? $errors[] = "Period \"{$row['period']}\" does not exist.";
         $lecturer = Lecturer::where('lecturer_code', $row['lecturer_code'])->first() ?? $errors[] = "Lecturer \"{$row['lecturer_code']}\" does not exist.";
         $classId = $this->classId($row['class_code'], '', $errors);
+
+        $period = null;
+        if ($row['period'] === '') {
+            $errors[] = 'The period field is required.';
+        } elseif (mb_strlen($row['period']) > 255) {
+            $errors[] = 'Period may not be greater than 255 characters.';
+        } else {
+            $period = Period::where('period_name', $row['period'])->first();
+            if (! $period) {
+                $notices[] = "Period \"{$row['period']}\" will be created automatically.";
+            }
+        }
 
         $students = [];
 
@@ -593,14 +605,32 @@ class InputDataImporter
             $errors[] = 'IKADQ must be a number between 0 and 4.';
         }
 
-        if ($errors === [] && CourseRecord::where(['course_id' => $course->id, 'period_id' => $period->id, 'class_id' => $classId])->exists()) {
+        if ($errors === [] && $period !== null && CourseRecord::where(['course_id' => $course->id, 'period_id' => $period->id, 'class_id' => $classId])->exists()) {
             $errors[] = 'A course record for this course, period and class already exists.';
         }
 
-        return [$errors ? null : [
-            'course_id' => $course->id, 'period_id' => $period->id, 'class_id' => $classId, 'lecturer_id' => $lecturer->id,
-            'ikadq' => $row['ikadq'] === '' ? null : $row['ikadq'], 'students' => array_values(array_unique($students)),
-        ], $errors];
+        if ($errors !== []) {
+            return [null, $errors];
+        }
+
+        $data = [
+            'course_id' => $course->id,
+            'period_id' => $period?->id,
+            'class_id' => $classId,
+            'lecturer_id' => $lecturer->id,
+            'ikadq' => $row['ikadq'] === '' ? null : $row['ikadq'],
+            'students' => array_values(array_unique($students)),
+        ];
+
+        if ($period === null) {
+            $data['_period_name'] = $row['period'];
+        }
+
+        if ($notices !== []) {
+            $data['_notices'] = $notices;
+        }
+
+        return [$data, []];
     }
 
     private function grade(array $row): array
@@ -621,6 +651,18 @@ class InputDataImporter
     {
         DB::transaction(function () use ($data) {
             $audit = app(AuditLogger::class);
+
+            if (empty($data['period_id']) && ! empty($data['_period_name'])) {
+                $period = Period::firstOrCreate(['period_name' => $data['_period_name']]);
+                if ($period->wasRecentlyCreated) {
+                    $audit->record('CREATE', 'Period', $period->id, null, $audit->snapshot($period, ['period_name', 'start_date', 'end_date']));
+                }
+
+                $data['period_id'] = $period->id;
+            }
+
+            unset($data['_period_name'], $data['_notices']);
+
             $record = CourseRecord::create([
                 'course_id' => $data['course_id'], 'period_id' => $data['period_id'], 'class_id' => $data['class_id'],
                 'lecturer_id' => $data['lecturer_id'], 'record_code' => CourseRecord::nextCodeFor(Period::find($data['period_id'])),
